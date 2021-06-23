@@ -107,6 +107,24 @@ func (c *WndClient) resetCookies() error {
 func (c *WndClient) RegisterToken(ctx context.Context) error {
 	c.Mux.Lock()
 	defer c.Mux.Unlock()
+
+	clientAuthHash, authTime := MakeAuthHash(c.Settings.ClientAuthSecret)
+	input := RegisterTokenRequest{
+		ClientAuthHash: clientAuthHash,
+		Time: authTime,
+	}
+	var output RegisterTokenResponse
+
+	err := c.postJSON(ctx, c.Settings.Endpoints.RegisterToken, input, &output)
+	if err != nil {
+		return err
+	}
+
+	c.TokenID = output.TokenID
+	c.Token = output.Token
+	c.TokenSignature = output.TokenSignature
+	c.TokenSignatureTime = output.TokenTime
+
 	return nil
 }
 
@@ -127,6 +145,7 @@ func (c *WndClient) postJSON(ctx context.Context, endpoint string, input, output
 	if err != nil {
 		return err
 	}
+
 	c.populateRequest(req)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
