@@ -42,11 +42,11 @@ type ProxyDialer struct {
 
 func NewProxyDialer(address, tlsServerName string, auth AuthProvider, caPool *x509.CertPool, nextDialer ContextDialer) *ProxyDialer {
 	return &ProxyDialer{
-		address:                address,
-		tlsServerName:          tlsServerName,
-		auth:                   auth,
-		next:                   nextDialer,
-		caPool:                 caPool,
+		address:       address,
+		tlsServerName: tlsServerName,
+		auth:          auth,
+		next:          nextDialer,
+		caPool:        caPool,
 	}
 }
 
