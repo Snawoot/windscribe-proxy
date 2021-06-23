@@ -1,4 +1,4 @@
-package seclient
+package wndclient
 
 import (
 	"net/http"

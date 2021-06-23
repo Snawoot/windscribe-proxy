@@ -7,7 +7,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
-	"net/url"
+	//"net/url"
 	"sync"
 )
 
@@ -84,7 +84,7 @@ func NewWndClient(transport http.RoundTripper) (*WndClient, error) {
 		return nil, err
 	}
 
-	return &SEClient{
+	return &WndClient{
 		httpClient: &http.Client{
 			Jar:       jar,
 			Transport: transport,
@@ -93,13 +93,13 @@ func NewWndClient(transport http.RoundTripper) (*WndClient, error) {
 	}, nil
 }
 
-func (c *SEClient) ResetCookies() error {
+func (c *WndClient) ResetCookies() error {
 	c.Mux.Lock()
 	defer c.Mux.Unlock()
 	return c.resetCookies()
 }
 
-func (c *SEClient) resetCookies() error {
+func (c *WndClient) resetCookies() error {
 	return (c.httpClient.Jar.(*StdJar)).Reset()
 }
 
