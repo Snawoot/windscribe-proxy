@@ -207,8 +207,6 @@ func (c *WndClient) ServerList(ctx context.Context) error {
 	c.Mux.Lock()
 	defer c.Mux.Unlock()
 
-	clientAuthHash, authTime := MakeAuthHash(c.Settings.ClientAuthSecret)
-
 	requestUrl, err := url.Parse(c.Settings.Endpoints.ServerList)
 	if err != nil {
 		return err
