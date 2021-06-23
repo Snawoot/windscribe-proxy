@@ -22,8 +22,6 @@ const (
 	PROXY_AUTHORIZATION_HEADER = "Proxy-Authorization"
 )
 
-type AuthProvider func() string
-
 type Dialer interface {
 	Dial(network, address string) (net.Conn, error)
 }
