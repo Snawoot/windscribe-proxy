@@ -6,7 +6,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -23,8 +22,7 @@ const (
 	PROXY_AUTHORIZATION_HEADER = "Proxy-Authorization"
 )
 
-var missingLinkDER, _ = pem.Decode([]byte(MISSING_CHAIN_CERT))
-var missingLink, _ = x509.ParseCertificate(missingLinkDER.Bytes)
+type AuthProvider func() string
 
 type Dialer interface {
 	Dial(network, address string) (net.Conn, error)
@@ -84,7 +82,7 @@ func ProxyDialerFromURL(u *url.URL, next ContextDialer) (*ProxyDialer, error) {
 			return authHeader
 		}
 	}
-	return NewProxyDialer(address, tlsServerName, auth, false, nil, next), nil
+	return NewProxyDialer(address, tlsServerName, auth, nil, next), nil
 }
 
 func (d *ProxyDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
@@ -112,7 +110,6 @@ func (d *ProxyDialer) DialContext(ctx context.Context, network, address string) 
 					Intermediates: x509.NewCertPool(),
 					Roots:         d.caPool,
 				}
-				waRequired := false
 				for _, cert := range cs.PeerCertificates[1:] {
 					opts.Intermediates.AddCert(cert)
 				}
