@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"path"
 	"strconv"
 	"sync"
 )
@@ -198,6 +199,35 @@ func (c *WndClient) ServerCredentials(ctx context.Context) error {
 
 	c.ProxyUsername = string(output.Data.Username)
 	c.ProxyPassword = string(output.Data.Password)
+
+	return nil
+}
+
+func (c *WndClient) ServerList(ctx context.Context) error {
+	c.Mux.Lock()
+	defer c.Mux.Unlock()
+
+	clientAuthHash, authTime := MakeAuthHash(c.Settings.ClientAuthSecret)
+
+	requestUrl, err := url.Parse(c.Settings.Endpoints.ServerList)
+	if err != nil {
+		return err
+	}
+	isPremium := "0"
+	if c.IsPremium {
+		isPremium = "1"
+	}
+	requestUrl.Path = path.Join(requestUrl.Path, c.Settings.Type, isPremium, c.LocationHash)
+
+	var output ServerListResponse
+
+	err = c.getJSON(ctx, requestUrl.String(), &output)
+	if err != nil {
+		return err
+	}
+	if output.Data == nil {
+		return ErrNoDataInResponse
+	}
 
 	return nil
 }

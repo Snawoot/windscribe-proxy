@@ -38,3 +38,47 @@ type ServerCredentialsResponse struct {
 		Password []byte `json:"password"`
 	} `json:"data"`
 }
+
+type ServerListResponse struct {
+	Data *ServerList `json:"data"`
+	Info *struct {
+		Revision       int    `json:"revision"`
+		RevisionHash   string `json:"revision_hash"`
+		Changed        int    `json:"changed"`
+		FC             int    `json:"fc"`
+		ProDatacenters []interface{}
+	} `json:"info"`
+}
+
+type ServerList []ServerListLocation
+
+type ServerListLocation struct {
+	ID           int               `json:"id"`
+	Name         string            `json:"name"`
+	CountryCode  string            `json:"country_code"`
+	Status       int               `json:"status"`
+	PremiumOnly  int               `json:"premium_only"`
+	ShortName    string            `json:"short_name"`
+	P2P          int               `json:"p2p"`
+	TZName       string            `json:"tz"`
+	TZOffset     string            `json:"tz_offset"`
+	LocationType string            `json:"loc_type"`
+	ForceExpand  int               `json:"force_expand"`
+	Groups       []ServerListGroup `json:"groups"`
+}
+
+type ServerListGroup struct {
+	ID       int                   `json:"id"`
+	City     string                `json:"city"`
+	Nick     string                `json:"nick"`
+	Pro      int                   `json:"pro"`
+	GPS      string                `json:"gps"`
+	WGPubkey []byte                `json:"wg_pubkey"`
+	PingIP   string                `json:"ping_ip"`
+	Hosts    []ServerListGroupHost `json:"hosts"`
+}
+
+type ServerListGroupHost struct {
+	Hostname string  `json:"hostname"`
+	Weight   float64 `json:"weight"`
+}
