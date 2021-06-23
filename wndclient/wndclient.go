@@ -1,9 +1,10 @@
 package wndclient
 
 import (
-	//"context"
-	//"encoding/json"
-	//"fmt"
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -57,19 +58,19 @@ var DefaultWndSettings = WndSettings{
 }
 
 type WndClient struct {
-	httpClient       *http.Client
-	Settings         WndSettings
-	TokenID          string
-	Token            string
-	Signature        string
-	SignatureTime    int64
-	LocationHash     string
-	LocationRevision int
-	IsPremium        bool
-	Status           int
-	UserID           string
-	SessionAuthHash  string
-	Mux              sync.Mutex
+	httpClient         *http.Client
+	Settings           WndSettings
+	TokenID            string
+	Token              string
+	TokenSignature     string
+	TokenSignatureTime int64
+	LocationHash       string
+	LocationRevision   int
+	IsPremium          bool
+	Status             int
+	UserID             string
+	SessionAuthHash    string
+	Mux                sync.Mutex
 }
 
 type StrKV map[string]string
@@ -101,6 +102,61 @@ func (c *WndClient) ResetCookies() error {
 
 func (c *WndClient) resetCookies() error {
 	return (c.httpClient.Jar.(*StdJar)).Reset()
+}
+
+func (c *WndClient) RegisterToken(ctx context.Context) error {
+	c.Mux.Lock()
+	defer c.Mux.Unlock()
+	return nil
+}
+
+func (c *WndClient) postJSON(ctx context.Context, endpoint string, input, output interface{}) error {
+	var reqBuf bytes.Buffer
+	reqEncoder := json.NewEncoder(&reqBuf)
+	err := reqEncoder.Encode(input)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(
+		ctx,
+		"POST",
+		endpoint,
+		&reqBuf,
+	)
+	if err != nil {
+		return err
+	}
+	c.populateRequest(req)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("bad http status: %s, headers: %#v", resp.Status, resp.Header)
+	}
+
+	decoder := json.NewDecoder(resp.Body)
+	err = decoder.Decode(output)
+	cleanupBody(resp.Body)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *WndClient) populateRequest(req *http.Request) {
+	req.Header.Set("User-Agent", c.Settings.UserAgent)
+	req.Header.Set("Origin", c.Settings.Origin)
+	queryValues := req.URL.Query()
+	queryValues.Set("platform", c.Settings.Platform)
+	req.URL.RawQuery = queryValues.Encode()
 }
 
 // Does cleanup of HTTP response in order to make it reusable by keep-alive
