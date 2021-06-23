@@ -203,13 +203,13 @@ func (c *WndClient) ServerCredentials(ctx context.Context) error {
 	return nil
 }
 
-func (c *WndClient) ServerList(ctx context.Context) error {
+func (c *WndClient) ServerList(ctx context.Context) (ServerList, error) {
 	c.Mux.Lock()
 	defer c.Mux.Unlock()
 
 	requestUrl, err := url.Parse(c.Settings.Endpoints.ServerList)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	isPremium := "0"
 	if c.IsPremium {
@@ -221,13 +221,13 @@ func (c *WndClient) ServerList(ctx context.Context) error {
 
 	err = c.getJSON(ctx, requestUrl.String(), &output)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if output.Data == nil {
-		return ErrNoDataInResponse
+		return nil, ErrNoDataInResponse
 	}
 
-	return nil
+	return output.Data, nil
 }
 
 func (c *WndClient) postJSON(ctx context.Context, endpoint string, input, output interface{}) error {

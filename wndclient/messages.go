@@ -40,7 +40,7 @@ type ServerCredentialsResponse struct {
 }
 
 type ServerListResponse struct {
-	Data *ServerList `json:"data"`
+	Data ServerList `json:"data"`
 	Info *struct {
 		Revision       int    `json:"revision"`
 		RevisionHash   string `json:"revision_hash"`

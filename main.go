@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/Snawoot/windscribe-proxy/wndclient"
 )
@@ -27,6 +29,17 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("wndc=%#v\n", wndc)
 	fmt.Printf("Username = %s\nPassword = %s\n", wndc.ProxyUsername, wndc.ProxyPassword)
+
+	list, err := wndc.ServerList(context.TODO())
+	if err != nil {
+		panic(err)
+	}
+
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	err = enc.Encode(list)
+	if err != nil {
+		panic(err)
+	}
 }
