@@ -9,7 +9,8 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
-	//"net/url"
+	"net/url"
+	"strconv"
 	"sync"
 )
 
@@ -74,6 +75,8 @@ type WndClient struct {
 	UserID             string
 	SessionAuthHash    string
 	Mux                sync.Mutex
+	ProxyUsername      string
+	ProxyPassword      string
 }
 
 type StrKV map[string]string
@@ -167,6 +170,38 @@ func (c *WndClient) Users(ctx context.Context) error {
 	return nil
 }
 
+func (c *WndClient) ServerCredentials(ctx context.Context) error {
+	c.Mux.Lock()
+	defer c.Mux.Unlock()
+
+	clientAuthHash, authTime := MakeAuthHash(c.Settings.ClientAuthSecret)
+
+	requestUrl, err := url.Parse(c.Settings.Endpoints.ServerCredentials)
+	if err != nil {
+		return err
+	}
+	queryValues := requestUrl.Query()
+	queryValues.Set("client_auth_hash", clientAuthHash)
+	queryValues.Set("session_auth_hash", c.SessionAuthHash)
+	queryValues.Set("time", strconv.FormatInt(authTime, 10))
+	requestUrl.RawQuery = queryValues.Encode()
+
+	var output ServerCredentialsResponse
+
+	err = c.getJSON(ctx, requestUrl.String(), &output)
+	if err != nil {
+		return err
+	}
+	if output.Data == nil {
+		return ErrNoDataInResponse
+	}
+
+	c.ProxyUsername = string(output.Data.Username)
+	c.ProxyPassword = string(output.Data.Password)
+
+	return nil
+}
+
 func (c *WndClient) postJSON(ctx context.Context, endpoint string, input, output interface{}) error {
 	var reqBuf bytes.Buffer
 	reqEncoder := json.NewEncoder(&reqBuf)
@@ -188,6 +223,40 @@ func (c *WndClient) postJSON(ctx context.Context, endpoint string, input, output
 	c.populateRequest(req)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return fmt.Errorf("bad http status: %s, headers: %#v", resp.Status, resp.Header)
+	}
+
+	decoder := json.NewDecoder(resp.Body)
+	err = decoder.Decode(output)
+	cleanupBody(resp.Body)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *WndClient) getJSON(ctx context.Context, requestUrl string, output interface{}) error {
+	req, err := http.NewRequestWithContext(
+		ctx,
+		"GET",
+		requestUrl,
+		nil,
+	)
+	if err != nil {
+		return err
+	}
+
+	c.populateRequest(req)
+	req.Header.Set("Accept", "*/*")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

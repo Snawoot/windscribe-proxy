@@ -31,3 +31,10 @@ type UsersResponse struct {
 		LocationHash     string `json:"loc_hash"`
 	} `json:"data"`
 }
+
+type ServerCredentialsResponse struct {
+	Data *struct {
+		Username []byte `json:"username"`
+		Password []byte `json:"password"`
+	} `json:"data"`
+}
