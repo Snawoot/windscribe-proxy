@@ -114,7 +114,7 @@ func (c *WndClient) RegisterToken(ctx context.Context) error {
 	clientAuthHash, authTime := MakeAuthHash(c.Settings.ClientAuthSecret)
 	input := RegisterTokenRequest{
 		ClientAuthHash: clientAuthHash,
-		Time: authTime,
+		Time:           authTime,
 	}
 
 	var output RegisterTokenResponse
@@ -131,6 +131,38 @@ func (c *WndClient) RegisterToken(ctx context.Context) error {
 	c.Token = output.Data.Token
 	c.TokenSignature = output.Data.TokenSignature
 	c.TokenSignatureTime = output.Data.TokenTime
+
+	return nil
+}
+
+func (c *WndClient) Users(ctx context.Context) error {
+	c.Mux.Lock()
+	defer c.Mux.Unlock()
+
+	clientAuthHash, authTime := MakeAuthHash(c.Settings.ClientAuthSecret)
+	input := UsersRequest{
+		ClientAuthHash: clientAuthHash,
+		Time:           authTime,
+		SessionType:    SESSION_TYPE_EXT,
+		Token:          c.Token,
+	}
+
+	var output UsersResponse
+
+	err := c.postJSON(ctx, c.Settings.Endpoints.Users, input, &output)
+	if err != nil {
+		return err
+	}
+	if output.Data == nil {
+		return ErrNoDataInResponse
+	}
+
+	c.UserID = output.Data.UserID
+	c.SessionAuthHash = output.Data.SessionAuthHash
+	c.Status = output.Data.Status
+	c.IsPremium = output.Data.IsPremium != 0
+	c.LocationRevision = output.Data.LocationRevision
+	c.LocationHash = output.Data.LocationHash
 
 	return nil
 }
@@ -162,7 +194,7 @@ func (c *WndClient) postJSON(ctx context.Context, endpoint string, input, output
 		return err
 	}
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		return fmt.Errorf("bad http status: %s, headers: %#v", resp.Status, resp.Header)
 	}
 

@@ -17,5 +17,10 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
+	err = wndc.Users(context.TODO())
+	if err != nil {
+		panic(err)
+	}
 	fmt.Printf("wndc=%#v\n", wndc)
 }

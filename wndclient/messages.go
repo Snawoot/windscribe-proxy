@@ -13,3 +13,21 @@ type RegisterTokenResponse struct {
 		TokenTime      int64  `json:"time"`
 	} `json:"data"`
 }
+
+type UsersRequest struct {
+	ClientAuthHash string `json:"client_auth_hash"`
+	SessionType    int    `json:"session_type_id"`
+	Time           int64  `json:"time,string"`
+	Token          string `json:"token"`
+}
+
+type UsersResponse struct {
+	Data *struct {
+		UserID           string `json:"user_id"`
+		SessionAuthHash  string `json:"session_auth_hash"`
+		Status           int    `json:"status"`
+		IsPremium        int    `json:"is_premium"`
+		LocationRevision int    `json:"loc_rev"`
+		LocationHash     string `json:"loc_hash"`
+	} `json:"data"`
+}
