@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -56,6 +57,8 @@ var DefaultWndSettings = WndSettings{
 	SessionType:      SESSION_TYPE_EXT,
 	Endpoints:        DefaultWndEndpoints,
 }
+
+var ErrNoDataInResponse = errors.New("no \"data\" key in response")
 
 type WndClient struct {
 	httpClient         *http.Client
@@ -113,17 +116,21 @@ func (c *WndClient) RegisterToken(ctx context.Context) error {
 		ClientAuthHash: clientAuthHash,
 		Time: authTime,
 	}
+
 	var output RegisterTokenResponse
 
 	err := c.postJSON(ctx, c.Settings.Endpoints.RegisterToken, input, &output)
 	if err != nil {
 		return err
 	}
+	if output.Data == nil {
+		return ErrNoDataInResponse
+	}
 
-	c.TokenID = output.TokenID
-	c.Token = output.Token
-	c.TokenSignature = output.TokenSignature
-	c.TokenSignatureTime = output.TokenTime
+	c.TokenID = output.Data.TokenID
+	c.Token = output.Data.Token
+	c.TokenSignature = output.Data.TokenSignature
+	c.TokenSignatureTime = output.Data.TokenTime
 
 	return nil
 }

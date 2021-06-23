@@ -6,8 +6,10 @@ type RegisterTokenRequest struct {
 }
 
 type RegisterTokenResponse struct {
-	TokenID        string `json:"id"`
-	Token          string `json:"token"`
-	TokenSignature string `json:"signature"`
-	TokenTime      int64  `json:"time,string"`
+	Data *struct {
+		TokenID        string `json:"id"`
+		Token          string `json:"token"`
+		TokenSignature string `json:"signature"`
+		TokenTime      int64  `json:"time"`
+	} `json:"data"`
 }
