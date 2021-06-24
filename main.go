@@ -45,8 +45,8 @@ func arg_fail(msg string) {
 }
 
 type CLIArgs struct {
-	country          string
-	listCountries    bool
+	location         string
+	listLocations    bool
 	listProxies      bool
 	bindAddress      string
 	verbosity        int
@@ -63,8 +63,8 @@ type CLIArgs struct {
 
 func parse_args() CLIArgs {
 	var args CLIArgs
-	flag.StringVar(&args.country, "country", "EU", "desired proxy location")
-	flag.BoolVar(&args.listCountries, "list-countries", false, "list available countries and exit")
+	flag.StringVar(&args.location, "location", "", "desired proxy location. Default: best location")
+	flag.BoolVar(&args.listLocations, "list-locations", false, "list available locations and exit")
 	flag.BoolVar(&args.listProxies, "list-proxies", false, "output proxy list and exit")
 	flag.StringVar(&args.bindAddress, "bind-address", "127.0.0.1:28080", "HTTP proxy listen address")
 	flag.IntVar(&args.verbosity, "verbosity", 20, "logging verbosity "+
@@ -86,11 +86,8 @@ func parse_args() CLIArgs {
 	flag.StringVar(&args.stateFile, "state-file", "wndstate.json", "file name used to persist "+
 		"Windscribe API client state")
 	flag.Parse()
-	if args.country == "" {
-		arg_fail("Country can't be empty string.")
-	}
-	if args.listCountries && args.listProxies {
-		arg_fail("list-countries and list-proxies flags are mutually exclusive")
+	if args.listLocations && args.listProxies {
+		arg_fail("list-locations and list-proxies flags are mutually exclusive")
 	}
 	return args
 }
@@ -151,7 +148,7 @@ func run() int {
 		ServerName:         "",
 		InsecureSkipVerify: true,
 	}
-	wndclient, err := wndclient.NewWndClient(&http.Transport{
+	wndc, err := wndclient.NewWndClient(&http.Transport{
 		DialContext: wndclientDialer.DialContext,
 		DialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			conn, err := wndclientDialer.DialContext(ctx, network, addr)
@@ -175,29 +172,32 @@ func run() int {
 	state, err := loadState(args.stateFile)
 	if err != nil {
 		mainLogger.Warning("Failed to load client state: %v. Performing cold init...", err)
-		err = coldInit(wndclient, args.timeout)
+		err = coldInit(wndc, args.timeout)
 		if err != nil {
 			mainLogger.Critical("Cold init failed: %v", err)
 			return 9
 		}
-		err = saveState(args.stateFile, &wndclient.State)
+		err = saveState(args.stateFile, &wndc.State)
 		if err != nil {
 			mainLogger.Error("Unable to save state file! Error: %v", err)
 		}
 	} else {
-		wndclient.State = *state
+		wndc.State = *state
 	}
 
-	ctx, cl := context.WithTimeout(context.Background(), args.timeout)
-	serverList, err := wndclient.ServerList(ctx)
-	cl()
-	if err != nil {
-		mainLogger.Critical("Server list retrieve failed: %v", err)
-		return 12
+	var serverList wndclient.ServerList
+	if args.listProxies || args.listLocations || args.location != "" {
+		ctx, cl := context.WithTimeout(context.Background(), args.timeout)
+		serverList, err = wndc.ServerList(ctx)
+		cl()
+		if err != nil {
+			mainLogger.Critical("Server list retrieve failed: %v", err)
+			return 12
+		}
 	}
 
 	if args.listProxies {
-		username, password := wndclient.GetProxyCredentials()
+		username, password := wndc.GetProxyCredentials()
 		return printProxies(username, password, serverList)
 	}
 
@@ -210,7 +210,7 @@ func run() int {
 	//	mainLogger.Info("Refreshing login...")
 	//	reqCtx, cl := context.WithTimeout(ctx, args.timeout)
 	//	defer cl()
-	//	err := wndclient.Login(reqCtx)
+	//	err := wndc.Login(reqCtx)
 	//	if err != nil {
 	//		mainLogger.Error("Login refresh failed: %v", err)
 	//		return err
@@ -220,7 +220,7 @@ func run() int {
 	//	mainLogger.Info("Refreshing device password...")
 	//	reqCtx, cl = context.WithTimeout(ctx, args.timeout)
 	//	defer cl()
-	//	err = wndclient.DeviceGeneratePassword(reqCtx)
+	//	err = wndc.DeviceGeneratePassword(reqCtx)
 	//	if err != nil {
 	//		mainLogger.Error("Device password refresh failed: %v", err)
 	//		return err
@@ -231,7 +231,7 @@ func run() int {
 
 	//endpoint := ips[0]
 	auth := func() string {
-		return basic_auth_header(wndclient.GetProxyCredentials())
+		return basic_auth_header(wndc.GetProxyCredentials())
 	}
 
 	var caPool *x509.CertPool
@@ -269,7 +269,18 @@ func printProxies(username, password string, serverList wndclient.ServerList) in
 	fmt.Println("Proxy password:", password)
 	fmt.Println("Proxy-Authorization:", basic_auth_header(username, password))
 	fmt.Println("")
-	//wr.Write([]string{"host", "ip_address", "port"})
+	wr.Write([]string{"location", "hostname", "port"})
+	for _, country := range serverList {
+		for _, group := range country.Groups {
+			for _, host := range group.Hosts {
+				wr.Write([]string{
+					country.Name + "/" + group.City,
+					host.Hostname,
+					"443",
+				})
+			}
+		}
+	}
 	//for i, ip := range ips {
 	//	for _, port := range ip.Ports {
 	//		wr.Write([]string{
@@ -310,23 +321,23 @@ func saveState(filename string, state *wndclient.WndClientState) error {
 	return err
 }
 
-func coldInit(wndclient *wndclient.WndClient, timeout time.Duration) error {
+func coldInit(wndc *wndclient.WndClient, timeout time.Duration) error {
 	ctx, cl := context.WithTimeout(context.Background(), timeout)
-	err := wndclient.RegisterToken(ctx)
+	err := wndc.RegisterToken(ctx)
 	cl()
 	if err != nil {
 		return err
 	}
 
 	ctx, cl = context.WithTimeout(context.Background(), timeout)
-	err = wndclient.Users(ctx)
+	err = wndc.Users(ctx)
 	cl()
 	if err != nil {
 		return err
 	}
 
 	ctx, cl = context.WithTimeout(context.Background(), timeout)
-	err = wndclient.ServerCredentials(ctx)
+	err = wndc.ServerCredentials(ctx)
 	cl()
 	if err != nil {
 		return err
