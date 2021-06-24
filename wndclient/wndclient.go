@@ -29,10 +29,10 @@ const (
 var ErrNoDataInResponse = errors.New("no \"data\" key in response")
 
 type WndEndpoints struct {
-	RegisterToken     string
-	Users             string
-	ServerList        string
-	ServerCredentials string
+	RegisterToken     string `json:"RegisterToken"`
+	Users             string `json:"Users"`
+	ServerList        string `json:"serverlist"`
+	ServerCredentials string `json:"ServerCredentials"`
 }
 
 var DefaultWndEndpoints = WndEndpoints{
@@ -43,13 +43,13 @@ var DefaultWndEndpoints = WndEndpoints{
 }
 
 type WndSettings struct {
-	ClientAuthSecret string
-	Platform         string
-	Type             string
-	UserAgent        string
-	Origin           string
-	SessionType      int
-	Endpoints        WndEndpoints
+	ClientAuthSecret string       `json:"client_auth_secret"`
+	Platform         string       `json:"platform"`
+	Type             string       `json:"type"`
+	UserAgent        string       `json:"user_agent"`
+	Origin           string       `json:"origin"`
+	SessionType      int          `json:"session_type"`
+	Endpoints        WndEndpoints `json:"endpoints"`
 }
 
 var DefaultWndSettings = WndSettings{
@@ -63,25 +63,25 @@ var DefaultWndSettings = WndSettings{
 }
 
 type WndClientState struct {
-	TokenID            string
-	Token              string
-	TokenSignature     string
-	TokenSignatureTime int64
-	LocationHash       string
-	LocationRevision   int
-	IsPremium          bool
-	Status             int
-	UserID             string
-	SessionAuthHash    string
-	ProxyUsername      string
-	ProxyPassword      string
-	Settings           WndSettings
+	TokenID            string      `json:"token_id"`
+	Token              string      `json:"token"`
+	TokenSignature     string      `json:"token_signature"`
+	TokenSignatureTime int64       `json:"token_signature_time,string"`
+	LocationHash       string      `json:"loc_hash"`
+	LocationRevision   int         `json:"loc_rev"`
+	IsPremium          bool        `json:"is_premium"`
+	Status             int         `json:"status"`
+	UserID             string      `json:"user_id"`
+	SessionAuthHash    string      `json:"session_auth_hash"`
+	ProxyUsername      string      `json:"proxy_username"`
+	ProxyPassword      string      `json:"proxy_password"`
+	Settings           WndSettings `json:"settings"`
 }
 
 type WndClient struct {
-	httpClient         *http.Client
-	Mux                sync.Mutex
-	State              WndClientState
+	httpClient *http.Client
+	Mux        sync.Mutex
+	State      WndClientState
 }
 
 type StrKV map[string]string

@@ -25,7 +25,7 @@ import (
 
 const (
 	DEFAULT_CLIENT_AUTH_SECRET = "952b4412f002315aa50751032fcaab03"
-	ASSUMED_PROXY_PORT = 443
+	ASSUMED_PROXY_PORT         = 443
 )
 
 var (
@@ -45,20 +45,20 @@ func arg_fail(msg string) {
 }
 
 type CLIArgs struct {
-	country             string
-	listCountries       bool
-	listProxies         bool
-	bindAddress         string
-	verbosity           int
-	timeout             time.Duration
-	showVersion         bool
-	proxy               string
-	bootstrapDNS        string
-	refresh             time.Duration
-	refreshRetry        time.Duration
-	caFile              string
-	clientAuthSecret    string
-	stateFile           string
+	country          string
+	listCountries    bool
+	listProxies      bool
+	bindAddress      string
+	verbosity        int
+	timeout          time.Duration
+	showVersion      bool
+	proxy            string
+	bootstrapDNS     string
+	refresh          time.Duration
+	refreshRetry     time.Duration
+	caFile           string
+	clientAuthSecret string
+	stateFile        string
 }
 
 func parse_args() CLIArgs {
