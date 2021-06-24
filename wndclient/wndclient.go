@@ -75,7 +75,7 @@ type WndClient struct {
 	Status             int
 	UserID             string
 	SessionAuthHash    string
-	Mux                sync.Mutex
+	Mux                sync.Mutex `json:"-"`
 	ProxyUsername      string
 	ProxyPassword      string
 }
