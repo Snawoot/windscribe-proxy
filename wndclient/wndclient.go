@@ -26,6 +26,8 @@ const (
 	ACCOUNT_STATE_BANNED            = 3
 )
 
+var ErrNoDataInResponse = errors.New("no \"data\" key in response")
+
 type WndEndpoints struct {
 	RegisterToken     string
 	Users             string
@@ -60,11 +62,7 @@ var DefaultWndSettings = WndSettings{
 	Endpoints:        DefaultWndEndpoints,
 }
 
-var ErrNoDataInResponse = errors.New("no \"data\" key in response")
-
-type WndClient struct {
-	httpClient         *http.Client
-	Settings           WndSettings
+type WndClientState struct {
 	TokenID            string
 	Token              string
 	TokenSignature     string
@@ -75,9 +73,15 @@ type WndClient struct {
 	Status             int
 	UserID             string
 	SessionAuthHash    string
-	Mux                sync.Mutex `json:"-"`
 	ProxyUsername      string
 	ProxyPassword      string
+	Settings           WndSettings
+}
+
+type WndClient struct {
+	httpClient         *http.Client
+	Mux                sync.Mutex
+	State              WndClientState
 }
 
 type StrKV map[string]string
@@ -87,35 +91,21 @@ func NewWndClient(transport http.RoundTripper) (*WndClient, error) {
 		transport = http.DefaultTransport
 	}
 
-	jar, err := NewStdJar()
-	if err != nil {
-		return nil, err
-	}
-
 	return &WndClient{
 		httpClient: &http.Client{
-			Jar:       jar,
 			Transport: transport,
 		},
-		Settings: DefaultWndSettings,
+		State: WndClientState{
+			Settings: DefaultWndSettings,
+		},
 	}, nil
-}
-
-func (c *WndClient) ResetCookies() error {
-	c.Mux.Lock()
-	defer c.Mux.Unlock()
-	return c.resetCookies()
-}
-
-func (c *WndClient) resetCookies() error {
-	return (c.httpClient.Jar.(*StdJar)).Reset()
 }
 
 func (c *WndClient) RegisterToken(ctx context.Context) error {
 	c.Mux.Lock()
 	defer c.Mux.Unlock()
 
-	clientAuthHash, authTime := MakeAuthHash(c.Settings.ClientAuthSecret)
+	clientAuthHash, authTime := MakeAuthHash(c.State.Settings.ClientAuthSecret)
 	input := RegisterTokenRequest{
 		ClientAuthHash: clientAuthHash,
 		Time:           authTime,
@@ -123,7 +113,7 @@ func (c *WndClient) RegisterToken(ctx context.Context) error {
 
 	var output RegisterTokenResponse
 
-	err := c.postJSON(ctx, c.Settings.Endpoints.RegisterToken, input, &output)
+	err := c.postJSON(ctx, c.State.Settings.Endpoints.RegisterToken, input, &output)
 	if err != nil {
 		return err
 	}
@@ -131,10 +121,10 @@ func (c *WndClient) RegisterToken(ctx context.Context) error {
 		return ErrNoDataInResponse
 	}
 
-	c.TokenID = output.Data.TokenID
-	c.Token = output.Data.Token
-	c.TokenSignature = output.Data.TokenSignature
-	c.TokenSignatureTime = output.Data.TokenTime
+	c.State.TokenID = output.Data.TokenID
+	c.State.Token = output.Data.Token
+	c.State.TokenSignature = output.Data.TokenSignature
+	c.State.TokenSignatureTime = output.Data.TokenTime
 
 	return nil
 }
@@ -143,17 +133,17 @@ func (c *WndClient) Users(ctx context.Context) error {
 	c.Mux.Lock()
 	defer c.Mux.Unlock()
 
-	clientAuthHash, authTime := MakeAuthHash(c.Settings.ClientAuthSecret)
+	clientAuthHash, authTime := MakeAuthHash(c.State.Settings.ClientAuthSecret)
 	input := UsersRequest{
 		ClientAuthHash: clientAuthHash,
 		Time:           authTime,
 		SessionType:    SESSION_TYPE_EXT,
-		Token:          c.Token,
+		Token:          c.State.Token,
 	}
 
 	var output UsersResponse
 
-	err := c.postJSON(ctx, c.Settings.Endpoints.Users, input, &output)
+	err := c.postJSON(ctx, c.State.Settings.Endpoints.Users, input, &output)
 	if err != nil {
 		return err
 	}
@@ -161,12 +151,12 @@ func (c *WndClient) Users(ctx context.Context) error {
 		return ErrNoDataInResponse
 	}
 
-	c.UserID = output.Data.UserID
-	c.SessionAuthHash = output.Data.SessionAuthHash
-	c.Status = output.Data.Status
-	c.IsPremium = output.Data.IsPremium != 0
-	c.LocationRevision = output.Data.LocationRevision
-	c.LocationHash = output.Data.LocationHash
+	c.State.UserID = output.Data.UserID
+	c.State.SessionAuthHash = output.Data.SessionAuthHash
+	c.State.Status = output.Data.Status
+	c.State.IsPremium = output.Data.IsPremium != 0
+	c.State.LocationRevision = output.Data.LocationRevision
+	c.State.LocationHash = output.Data.LocationHash
 
 	return nil
 }
@@ -175,15 +165,15 @@ func (c *WndClient) ServerCredentials(ctx context.Context) error {
 	c.Mux.Lock()
 	defer c.Mux.Unlock()
 
-	clientAuthHash, authTime := MakeAuthHash(c.Settings.ClientAuthSecret)
+	clientAuthHash, authTime := MakeAuthHash(c.State.Settings.ClientAuthSecret)
 
-	requestUrl, err := url.Parse(c.Settings.Endpoints.ServerCredentials)
+	requestUrl, err := url.Parse(c.State.Settings.Endpoints.ServerCredentials)
 	if err != nil {
 		return err
 	}
 	queryValues := requestUrl.Query()
 	queryValues.Set("client_auth_hash", clientAuthHash)
-	queryValues.Set("session_auth_hash", c.SessionAuthHash)
+	queryValues.Set("session_auth_hash", c.State.SessionAuthHash)
 	queryValues.Set("time", strconv.FormatInt(authTime, 10))
 	requestUrl.RawQuery = queryValues.Encode()
 
@@ -197,8 +187,8 @@ func (c *WndClient) ServerCredentials(ctx context.Context) error {
 		return ErrNoDataInResponse
 	}
 
-	c.ProxyUsername = string(output.Data.Username)
-	c.ProxyPassword = string(output.Data.Password)
+	c.State.ProxyUsername = string(output.Data.Username)
+	c.State.ProxyPassword = string(output.Data.Password)
 
 	return nil
 }
@@ -207,15 +197,15 @@ func (c *WndClient) ServerList(ctx context.Context) (ServerList, error) {
 	c.Mux.Lock()
 	defer c.Mux.Unlock()
 
-	requestUrl, err := url.Parse(c.Settings.Endpoints.ServerList)
+	requestUrl, err := url.Parse(c.State.Settings.Endpoints.ServerList)
 	if err != nil {
 		return nil, err
 	}
 	isPremium := "0"
-	if c.IsPremium {
+	if c.State.IsPremium {
 		isPremium = "1"
 	}
-	requestUrl.Path = path.Join(requestUrl.Path, c.Settings.Type, isPremium, c.LocationHash)
+	requestUrl.Path = path.Join(requestUrl.Path, c.State.Settings.Type, isPremium, c.State.LocationHash)
 
 	var output ServerListResponse
 
@@ -272,6 +262,12 @@ func (c *WndClient) postJSON(ctx context.Context, endpoint string, input, output
 	return nil
 }
 
+func (c *WndClient) GetCredentials() (string, string) {
+	c.Mux.Lock()
+	defer c.Mux.Unlock()
+	return c.State.ProxyUsername, c.State.ProxyPassword
+}
+
 func (c *WndClient) getJSON(ctx context.Context, requestUrl string, output interface{}) error {
 	req, err := http.NewRequestWithContext(
 		ctx,
@@ -307,10 +303,10 @@ func (c *WndClient) getJSON(ctx context.Context, requestUrl string, output inter
 }
 
 func (c *WndClient) populateRequest(req *http.Request) {
-	req.Header.Set("User-Agent", c.Settings.UserAgent)
-	req.Header.Set("Origin", c.Settings.Origin)
+	req.Header.Set("User-Agent", c.State.Settings.UserAgent)
+	req.Header.Set("Origin", c.State.Settings.Origin)
 	queryValues := req.URL.Query()
-	queryValues.Set("platform", c.Settings.Platform)
+	queryValues.Set("platform", c.State.Settings.Platform)
 	req.URL.RawQuery = queryValues.Encode()
 }
 

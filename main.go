@@ -29,7 +29,8 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("Username = %s\nPassword = %s\n", wndc.ProxyUsername, wndc.ProxyPassword)
+	username, password := wndc.GetCredentials()
+	fmt.Printf("Username = %s\nPassword = %s\n", username, password)
 
 	list, err := wndc.ServerList(context.TODO())
 	if err != nil {
