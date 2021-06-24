@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	//"encoding/csv"
+	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -74,6 +74,7 @@ func parse_args() CLIArgs {
 	flag.StringVar(&args.proxy, "proxy", "", "sets base proxy to use for all dial-outs. "+
 		"Format: <http|https|socks5|socks5h>://[login:password@]host[:port] "+
 		"Examples: http://user:password@192.168.1.1:3128, socks5://10.0.0.1:1080")
+	// TODO: implement DNS resolving or remove it
 	flag.StringVar(&args.bootstrapDNS, "bootstrap-dns", "",
 		"DNS/DoH/DoT/DoQ resolver for initial discovering of SurfEasy API address. "+
 			"See https://github.com/ameshkov/dnslookup/ for upstream DNS URL format. "+
@@ -145,8 +146,7 @@ func run() int {
 
 	wndclientDialer := dialer
 
-	// Dialing w/o SNI, receiving self-signed certificate, so skip verification.
-	// Either way we'll validate certificate of actual proxy server.
+	// TODO: properly validate cert, move TLSDialer to utils
 	tlsConfig := &tls.Config{
 		ServerName:         "",
 		InsecureSkipVerify: true,
@@ -180,16 +180,26 @@ func run() int {
 			mainLogger.Critical("Cold init failed: %v", err)
 			return 9
 		}
+		err = saveState(args.stateFile, &wndclient.State)
+		if err != nil {
+			mainLogger.Error("Unable to save state file! Error: %v", err)
+		}
 	} else {
 		wndclient.State = *state
 	}
 
-	//ctx, cl = context.WithTimeout(context.Background(), args.timeout)
-	//ips, err := wndclient.Discover(ctx, fmt.Sprintf("\"%s\",,", args.country))
-	//if err != nil {
-	//	mainLogger.Critical("Endpoint discovery failed: %v", err)
-	//	return 12
-	//}
+	ctx, cl := context.WithTimeout(context.Background(), args.timeout)
+	serverList, err := wndclient.ServerList(ctx)
+	cl()
+	if err != nil {
+		mainLogger.Critical("Server list retrieve failed: %v", err)
+		return 12
+	}
+
+	if args.listProxies {
+		username, password := wndclient.GetProxyCredentials()
+		return printProxies(username, password, serverList)
+	}
 
 	//if len(ips) == 0 {
 	//	mainLogger.Critical("Empty endpoint list!")
@@ -252,14 +262,13 @@ func run() int {
 	return 0
 }
 
-func printProxies(wndclient *wndclient.WndClient) int {
-	//wr := csv.NewWriter(os.Stdout)
-	//defer wr.Flush()
-	//login, password := wndclient.GetProxyCredentials()
-	//fmt.Println("Proxy login:", login)
-	//fmt.Println("Proxy password:", password)
-	//fmt.Println("Proxy-Authorization:", basic_auth_header(login, password))
-	//fmt.Println("")
+func printProxies(username, password string, serverList wndclient.ServerList) int {
+	wr := csv.NewWriter(os.Stdout)
+	defer wr.Flush()
+	fmt.Println("Proxy login:", username)
+	fmt.Println("Proxy password:", password)
+	fmt.Println("Proxy-Authorization:", basic_auth_header(username, password))
+	fmt.Println("")
 	//wr.Write([]string{"host", "ip_address", "port"})
 	//for i, ip := range ips {
 	//	for _, port := range ip.Ports {
@@ -304,16 +313,26 @@ func saveState(filename string, state *wndclient.WndClientState) error {
 func coldInit(wndclient *wndclient.WndClient, timeout time.Duration) error {
 	ctx, cl := context.WithTimeout(context.Background(), timeout)
 	err := wndclient.RegisterToken(ctx)
+	cl()
 	if err != nil {
 		return err
 	}
-	cl()
 
 	ctx, cl = context.WithTimeout(context.Background(), timeout)
 	err = wndclient.Users(ctx)
 	cl()
+	if err != nil {
+		return err
+	}
 
-	return err
+	ctx, cl = context.WithTimeout(context.Background(), timeout)
+	err = wndclient.ServerCredentials(ctx)
+	cl()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func main() {
