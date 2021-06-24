@@ -4,7 +4,8 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/csv"
+	//"encoding/csv"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -14,7 +15,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"strings"
+	//"strings"
 	"time"
 
 	xproxy "golang.org/x/net/proxy"
@@ -24,6 +25,7 @@ import (
 
 const (
 	DEFAULT_CLIENT_AUTH_SECRET = "952b4412f002315aa50751032fcaab03"
+	ASSUMED_PROXY_PORT = 443
 )
 
 var (
@@ -149,7 +151,7 @@ func run() int {
 		ServerName:         "",
 		InsecureSkipVerify: true,
 	}
-	wndclient, err := se.NewWndClient(&http.Transport{
+	wndclient, err := wndclient.NewWndClient(&http.Transport{
 		DialContext: wndclientDialer.DialContext,
 		DialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			conn, err := wndclientDialer.DialContext(ctx, network, addr)
@@ -170,67 +172,54 @@ func run() int {
 	}
 
 	// Try ressurect state
-
-	ctx, cl := context.WithTimeout(context.Background(), args.timeout)
-	err = wndclient.AnonRegister(ctx)
+	state, err := loadState(args.stateFile)
 	if err != nil {
-		mainLogger.Critical("Unable to perform anonymous registration: %v", err)
-		return 9
-	}
-	cl()
-
-	ctx, cl = context.WithTimeout(context.Background(), args.timeout)
-	err = wndclient.RegisterDevice(ctx)
-	if err != nil {
-		mainLogger.Critical("Unable to perform device registration: %v", err)
-		return 10
-	}
-	cl()
-
-	if args.listCountries {
-		return printCountries(mainLogger, args.timeout, wndclient)
-	}
-
-	ctx, cl = context.WithTimeout(context.Background(), args.timeout)
-	ips, err := wndclient.Discover(ctx, fmt.Sprintf("\"%s\",,", args.country))
-	if err != nil {
-		mainLogger.Critical("Endpoint discovery failed: %v", err)
-		return 12
-	}
-
-	if args.listProxies {
-		return printProxies(ips, wndclient)
-	}
-
-	if len(ips) == 0 {
-		mainLogger.Critical("Empty endpoint list!")
-		return 13
-	}
-
-	runTicker(context.Background(), args.refresh, args.refreshRetry, func(ctx context.Context) error {
-		mainLogger.Info("Refreshing login...")
-		reqCtx, cl := context.WithTimeout(ctx, args.timeout)
-		defer cl()
-		err := wndclient.Login(reqCtx)
+		mainLogger.Warning("Failed to load client state: %v. Performing cold init...", err)
+		err = coldInit(wndclient, args.timeout)
 		if err != nil {
-			mainLogger.Error("Login refresh failed: %v", err)
-			return err
+			mainLogger.Critical("Cold init failed: %v", err)
+			return 9
 		}
-		mainLogger.Info("Login refreshed.")
+	} else {
+		wndclient.State = *state
+	}
 
-		mainLogger.Info("Refreshing device password...")
-		reqCtx, cl = context.WithTimeout(ctx, args.timeout)
-		defer cl()
-		err = wndclient.DeviceGeneratePassword(reqCtx)
-		if err != nil {
-			mainLogger.Error("Device password refresh failed: %v", err)
-			return err
-		}
-		mainLogger.Info("Device password refreshed.")
-		return nil
-	})
+	//ctx, cl = context.WithTimeout(context.Background(), args.timeout)
+	//ips, err := wndclient.Discover(ctx, fmt.Sprintf("\"%s\",,", args.country))
+	//if err != nil {
+	//	mainLogger.Critical("Endpoint discovery failed: %v", err)
+	//	return 12
+	//}
 
-	endpoint := ips[0]
+	//if len(ips) == 0 {
+	//	mainLogger.Critical("Empty endpoint list!")
+	//	return 13
+	//}
+
+	//runTicker(context.Background(), args.refresh, args.refreshRetry, func(ctx context.Context) error {
+	//	mainLogger.Info("Refreshing login...")
+	//	reqCtx, cl := context.WithTimeout(ctx, args.timeout)
+	//	defer cl()
+	//	err := wndclient.Login(reqCtx)
+	//	if err != nil {
+	//		mainLogger.Error("Login refresh failed: %v", err)
+	//		return err
+	//	}
+	//	mainLogger.Info("Login refreshed.")
+
+	//	mainLogger.Info("Refreshing device password...")
+	//	reqCtx, cl = context.WithTimeout(ctx, args.timeout)
+	//	defer cl()
+	//	err = wndclient.DeviceGeneratePassword(reqCtx)
+	//	if err != nil {
+	//		mainLogger.Error("Device password refresh failed: %v", err)
+	//		return err
+	//	}
+	//	mainLogger.Info("Device password refreshed.")
+	//	return nil
+	//})
+
+	//endpoint := ips[0]
 	auth := func() string {
 		return basic_auth_header(wndclient.GetProxyCredentials())
 	}
@@ -249,54 +238,82 @@ func run() int {
 		}
 	}
 
-	handlerDialer := NewProxyDialer(endpoint.NetAddr(), fmt.Sprintf("%s0.%s", args.country, PROXY_SUFFIX), auth, args.certChainWorkaround, caPool, dialer)
-	mainLogger.Info("Endpoint: %s", endpoint.NetAddr())
-	mainLogger.Info("Starting proxy server...")
-	handler := NewProxyHandler(handlerDialer, proxyLogger)
-	mainLogger.Info("Init complete.")
-	err = http.ListenAndServe(args.bindAddress, handler)
-	mainLogger.Critical("Server terminated with a reason: %v", err)
-	mainLogger.Info("Shutting down...")
+	// TODO: set servername
+	//handlerDialer := NewProxyDialer(endpoint.NetAddr(), "", auth, caPool, dialer)
+	//mainLogger.Info("Endpoint: %s", endpoint.NetAddr())
+	//mainLogger.Info("Starting proxy server...")
+	//handler := NewProxyHandler(handlerDialer, proxyLogger)
+	//mainLogger.Info("Init complete.")
+	//err = http.ListenAndServe(args.bindAddress, handler)
+	//mainLogger.Critical("Server terminated with a reason: %v", err)
+	//mainLogger.Info("Shutting down...")
+	_ = proxyLogger
+	_ = auth
 	return 0
 }
 
-func printCountries(logger *CondLogger, timeout time.Duration, wndclient *se.WndClient) int {
-	ctx, cl := context.WithTimeout(context.Background(), timeout)
-	defer cl()
-	list, err := wndclient.GeoList(ctx)
+func printProxies(wndclient *wndclient.WndClient) int {
+	//wr := csv.NewWriter(os.Stdout)
+	//defer wr.Flush()
+	//login, password := wndclient.GetProxyCredentials()
+	//fmt.Println("Proxy login:", login)
+	//fmt.Println("Proxy password:", password)
+	//fmt.Println("Proxy-Authorization:", basic_auth_header(login, password))
+	//fmt.Println("")
+	//wr.Write([]string{"host", "ip_address", "port"})
+	//for i, ip := range ips {
+	//	for _, port := range ip.Ports {
+	//		wr.Write([]string{
+	//			fmt.Sprintf("%s%d.%s", strings.ToLower(ip.Geo.CountryCode), i, PROXY_SUFFIX),
+	//			ip.IP,
+	//			fmt.Sprintf("%d", port),
+	//		})
+	//	}
+	//}
+	return 0
+}
+
+func loadState(filename string) (*wndclient.WndClientState, error) {
+	file, err := os.Open(filename)
 	if err != nil {
-		logger.Critical("GeoList error: %v", err)
-		return 11
+		return nil, err
 	}
 
-	wr := csv.NewWriter(os.Stdout)
-	defer wr.Flush()
-	wr.Write([]string{"country code", "country name"})
-	for _, country := range list {
-		wr.Write([]string{country.CountryCode, country.Country})
+	var state wndclient.WndClientState
+	dec := json.NewDecoder(file)
+	err = dec.Decode(&state)
+	if err != nil {
+		return nil, err
 	}
-	return 0
+
+	return &state, nil
 }
 
-func printProxies(ips []se.SEIPEntry, wndclient *se.WndClient) int {
-	wr := csv.NewWriter(os.Stdout)
-	defer wr.Flush()
-	login, password := wndclient.GetProxyCredentials()
-	fmt.Println("Proxy login:", login)
-	fmt.Println("Proxy password:", password)
-	fmt.Println("Proxy-Authorization:", basic_auth_header(login, password))
-	fmt.Println("")
-	wr.Write([]string{"host", "ip_address", "port"})
-	for i, ip := range ips {
-		for _, port := range ip.Ports {
-			wr.Write([]string{
-				fmt.Sprintf("%s%d.%s", strings.ToLower(ip.Geo.CountryCode), i, PROXY_SUFFIX),
-				ip.IP,
-				fmt.Sprintf("%d", port),
-			})
-		}
+func saveState(filename string, state *wndclient.WndClientState) error {
+	file, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE, 0600)
+	if err != nil {
+		return err
 	}
-	return 0
+
+	enc := json.NewEncoder(file)
+	enc.SetIndent("", "    ")
+	err = enc.Encode(state)
+	return err
+}
+
+func coldInit(wndclient *wndclient.WndClient, timeout time.Duration) error {
+	ctx, cl := context.WithTimeout(context.Background(), timeout)
+	err := wndclient.RegisterToken(ctx)
+	if err != nil {
+		return err
+	}
+	cl()
+
+	ctx, cl = context.WithTimeout(context.Background(), timeout)
+	err = wndclient.Users(ctx)
+	cl()
+
+	return err
 }
 
 func main() {

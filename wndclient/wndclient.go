@@ -262,7 +262,7 @@ func (c *WndClient) postJSON(ctx context.Context, endpoint string, input, output
 	return nil
 }
 
-func (c *WndClient) GetCredentials() (string, string) {
+func (c *WndClient) GetProxyCredentials() (string, string) {
 	c.Mux.Lock()
 	defer c.Mux.Unlock()
 	return c.State.ProxyUsername, c.State.ProxyPassword
