@@ -15,7 +15,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	//"strings"
+	"sort"
+	"strconv"
 	"time"
 
 	xproxy "golang.org/x/net/proxy"
@@ -24,8 +25,8 @@ import (
 )
 
 const (
-	DEFAULT_CLIENT_AUTH_SECRET = "952b4412f002315aa50751032fcaab03"
-	ASSUMED_PROXY_PORT         = 443
+	DEFAULT_CLIENT_AUTH_SECRET        = "952b4412f002315aa50751032fcaab03"
+	ASSUMED_PROXY_PORT         uint16 = 443
 )
 
 var (
@@ -201,6 +202,10 @@ func run() int {
 		return printProxies(username, password, serverList)
 	}
 
+	if args.listLocations {
+		return printLocations(serverList)
+	}
+
 	//if len(ips) == 0 {
 	//	mainLogger.Critical("Empty endpoint list!")
 	//	return 13
@@ -262,6 +267,44 @@ func run() int {
 	return 0
 }
 
+type locationPair struct {
+	country string
+	city    string
+}
+
+func printLocations(serverList wndclient.ServerList) int {
+	var locs []locationPair
+	for _, country := range serverList {
+		for _, group := range country.Groups {
+			if len(group.Hosts) > 1 {
+				locs = append(locs, locationPair{country.Name, group.City})
+			}
+		}
+	}
+	if len(locs) == 0 {
+		return 0
+	}
+
+	sort.Slice(locs, func(i, j int) bool {
+		if locs[i].country < locs[j].country {
+			return true
+		}
+		if locs[i].country == locs[j].country && locs[i].city < locs[j].city {
+			return true
+		}
+		return false
+	})
+
+	var prevLoc locationPair
+	for _, loc := range locs {
+		if loc != prevLoc {
+			fmt.Println(loc.country + "/" + loc.city)
+			prevLoc = loc
+		}
+	}
+	return 0
+}
+
 func printProxies(username, password string, serverList wndclient.ServerList) int {
 	wr := csv.NewWriter(os.Stdout)
 	defer wr.Flush()
@@ -276,20 +319,11 @@ func printProxies(username, password string, serverList wndclient.ServerList) in
 				wr.Write([]string{
 					country.Name + "/" + group.City,
 					host.Hostname,
-					"443",
+					strconv.FormatUint(uint64(ASSUMED_PROXY_PORT), 10),
 				})
 			}
 		}
 	}
-	//for i, ip := range ips {
-	//	for _, port := range ip.Ports {
-	//		wr.Write([]string{
-	//			fmt.Sprintf("%s%d.%s", strings.ToLower(ip.Geo.CountryCode), i, PROXY_SUFFIX),
-	//			ip.IP,
-	//			fmt.Sprintf("%d", port),
-	//		})
-	//	}
-	//}
 	return 0
 }
 
