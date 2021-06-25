@@ -229,29 +229,6 @@ func run() int {
 		}
 	}
 
-	//runTicker(context.Background(), args.refresh, args.refreshRetry, func(ctx context.Context) error {
-	//	mainLogger.Info("Refreshing login...")
-	//	reqCtx, cl := context.WithTimeout(ctx, args.timeout)
-	//	defer cl()
-	//	err := wndc.Login(reqCtx)
-	//	if err != nil {
-	//		mainLogger.Error("Login refresh failed: %v", err)
-	//		return err
-	//	}
-	//	mainLogger.Info("Login refreshed.")
-
-	//	mainLogger.Info("Refreshing device password...")
-	//	reqCtx, cl = context.WithTimeout(ctx, args.timeout)
-	//	defer cl()
-	//	err = wndc.DeviceGeneratePassword(reqCtx)
-	//	if err != nil {
-	//		mainLogger.Error("Device password refresh failed: %v", err)
-	//		return err
-	//	}
-	//	mainLogger.Info("Device password refreshed.")
-	//	return nil
-	//})
-
 	auth := func() string {
 		return basic_auth_header(wndc.GetProxyCredentials())
 	}
