@@ -12,7 +12,7 @@ RUN mkdir /state
 FROM scratch AS arrange
 COPY --from=build /go/src/github.com/Snawoot/windscribe-proxy/windscribe-proxy /
 COPY --from=build /certs.crt /etc/ssl/certs/ca-certificates.crt
-COPY --from=build --chown=9999:9999 /state /
+COPY --from=build --chown=9999:9999 /state /state
 
 FROM scratch
 COPY --from=arrange / /
