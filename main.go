@@ -2,16 +2,15 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
 	"crypto/x509"
 	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"flag"
-	"math/rand"
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"net"
 	"net/http"
 	"net/url"
@@ -127,6 +126,20 @@ func run() int {
 		KeepAlive: 30 * time.Second,
 	}
 
+	var caPool *x509.CertPool
+	if args.caFile != "" {
+		caPool = x509.NewCertPool()
+		certs, err := ioutil.ReadFile(args.caFile)
+		if err != nil {
+			mainLogger.Error("Can't load CA file: %v", err)
+			return 15
+		}
+		if ok := caPool.AppendCertsFromPEM(certs); !ok {
+			mainLogger.Error("Can't load certificates from CA file")
+			return 15
+		}
+	}
+
 	if args.proxy != "" {
 		xproxy.RegisterDialerType("http", proxyFromURLWrapper)
 		xproxy.RegisterDialerType("https", proxyFromURLWrapper)
@@ -145,20 +158,9 @@ func run() int {
 
 	wndclientDialer := dialer
 
-	// TODO: properly validate cert, move TLSDialer to utils
-	tlsConfig := &tls.Config{
-		ServerName:         "",
-		InsecureSkipVerify: true,
-	}
 	wndc, err := wndclient.NewWndClient(&http.Transport{
-		DialContext: wndclientDialer.DialContext,
-		DialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			conn, err := wndclientDialer.DialContext(ctx, network, addr)
-			if err != nil {
-				return conn, err
-			}
-			return tls.Client(conn, tlsConfig), nil
-		},
+		DialContext:           wndclientDialer.DialContext,
+		DialTLSContext:        NewNoSNIDialer(caPool, wndclientDialer).DialTLSContext,
 		ForceAttemptHTTP2:     true,
 		MaxIdleConns:          100,
 		IdleConnTimeout:       90 * time.Second,
@@ -254,20 +256,6 @@ func run() int {
 		return basic_auth_header(wndc.GetProxyCredentials())
 	}
 
-	var caPool *x509.CertPool
-	if args.caFile != "" {
-		caPool = x509.NewCertPool()
-		certs, err := ioutil.ReadFile(args.caFile)
-		if err != nil {
-			mainLogger.Error("Can't load CA file: %v", err)
-			return 15
-		}
-		if ok := caPool.AppendCertsFromPEM(certs); !ok {
-			mainLogger.Error("Can't load certificates from CA file")
-			return 15
-		}
-	}
-
 	proxyNetAddr := net.JoinHostPort(proxyHostname, strconv.FormatUint(uint64(ASSUMED_PROXY_PORT), 10))
 	handlerDialer := NewProxyDialer(proxyNetAddr, proxyHostname, auth, caPool, dialer)
 	mainLogger.Info("Endpoint: %s", proxyNetAddr)
@@ -345,7 +333,7 @@ func pickServer(serverList wndclient.ServerList, location string) string {
 	for _, country := range serverList {
 		for _, group := range country.Groups {
 			for _, host := range group.Hosts {
-				if country.Name + "/" + group.City == location {
+				if country.Name+"/"+group.City == location {
 					candidates = append(candidates, host.Hostname)
 				}
 			}

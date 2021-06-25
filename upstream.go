@@ -185,3 +185,45 @@ func readResponse(r io.Reader, req *http.Request) (*http.Response, error) {
 	}
 	return http.ReadResponse(bufio.NewReader(buf), req)
 }
+
+type NoSNIDialer struct {
+	caPool *x509.CertPool
+	next   ContextDialer
+}
+
+func NewNoSNIDialer(caPool *x509.CertPool, nextDialer ContextDialer) *NoSNIDialer {
+	return &NoSNIDialer{
+		caPool: caPool,
+		next:   nextDialer,
+	}
+}
+
+func (d *NoSNIDialer) DialTLSContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	conn, err := d.next.DialContext(ctx, network, addr)
+
+	name, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, err
+	}
+
+	tlsConfig := &tls.Config{
+		ServerName:         "",
+		InsecureSkipVerify: true,
+		VerifyConnection: func(cs tls.ConnectionState) error {
+			opts := x509.VerifyOptions{
+				DNSName:       name,
+				Intermediates: x509.NewCertPool(),
+				Roots:         d.caPool,
+			}
+			for _, cert := range cs.PeerCertificates[1:] {
+				opts.Intermediates.AddCert(cert)
+			}
+			_, err := cs.PeerCertificates[0].Verify(opts)
+			return err
+		},
+	}
+	if err != nil {
+		return conn, err
+	}
+	return tls.Client(conn, tlsConfig), nil
+}
