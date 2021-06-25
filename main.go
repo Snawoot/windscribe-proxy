@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
+	"math/rand"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -219,7 +220,11 @@ func run() int {
 		}
 		proxyHostname = bestLocation.Hostname
 	} else {
-		return 0
+		proxyHostname = pickServer(serverList, args.location)
+		if proxyHostname == "" {
+			mainLogger.Critical("Server for location \"%s\" not found.", args.location)
+			return 13
+		}
 	}
 
 	//runTicker(context.Background(), args.refresh, args.refreshRetry, func(ctx context.Context) error {
@@ -263,7 +268,6 @@ func run() int {
 		}
 	}
 
-	// TODO: set servername
 	proxyNetAddr := net.JoinHostPort(proxyHostname, strconv.FormatUint(uint64(ASSUMED_PROXY_PORT), 10))
 	handlerDialer := NewProxyDialer(proxyNetAddr, proxyHostname, auth, caPool, dialer)
 	mainLogger.Info("Endpoint: %s", proxyNetAddr)
@@ -334,6 +338,27 @@ func printProxies(username, password string, serverList wndclient.ServerList) in
 		}
 	}
 	return 0
+}
+
+func pickServer(serverList wndclient.ServerList, location string) string {
+	var candidates []string
+	for _, country := range serverList {
+		for _, group := range country.Groups {
+			for _, host := range group.Hosts {
+				if country.Name + "/" + group.City == location {
+					candidates = append(candidates, host.Hostname)
+				}
+			}
+		}
+	}
+
+	if len(candidates) == 0 {
+		return ""
+	}
+
+	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	return candidates[rnd.Intn(len(candidates))]
 }
 
 func loadState(filename string) (*wndclient.WndClientState, error) {
