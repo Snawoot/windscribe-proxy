@@ -83,14 +83,16 @@ type ServerListGroupHost struct {
 	Weight   float64 `json:"weight"`
 }
 
+type BestLocation struct {
+	CountryCode  string `json:"country_code"`
+	ShortName    string `json:"short_name"`
+	LocationName string `json:"location_name"`
+	CityName     string `json:"city_name"`
+	DCID         int    `json:"dc_id"`
+	ServerID     int    `json:"server_id"`
+	Hostname     string `json:"hostname"`
+}
+
 type BestLocationResponse struct {
-	Data *struct {
-		CountryCode  string `json:"country_code"`
-		ShortName    string `json:"short_name"`
-		LocationName string `json:"location_name"`
-		CityName     string `json:"city_name"`
-		DCID         int    `json:"dc_id"`
-		ServerID     int    `json:"server_id"`
-		Hostname     string `json:"hostname"`
-	} `json:"data"`
+	Data *BestLocation `json:"data"`
 }

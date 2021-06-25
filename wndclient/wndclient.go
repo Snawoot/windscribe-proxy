@@ -195,13 +195,13 @@ func (c *WndClient) ServerCredentials(ctx context.Context) error {
 	return nil
 }
 
-func (c *WndClient) BestLocation(ctx context.Context) (*BestLocationResponse, error) {
+func (c *WndClient) BestLocation(ctx context.Context) (*BestLocation, error) {
 	c.Mux.Lock()
 	defer c.Mux.Unlock()
 
 	clientAuthHash, authTime := MakeAuthHash(c.State.Settings.ClientAuthSecret)
 
-	requestUrl, err := url.Parse(c.State.Settings.Endpoints.ServerCredentials)
+	requestUrl, err := url.Parse(c.State.Settings.Endpoints.BestLocation)
 	if err != nil {
 		return nil, err
 	}
@@ -221,7 +221,7 @@ func (c *WndClient) BestLocation(ctx context.Context) (*BestLocationResponse, er
 		return nil, ErrNoDataInResponse
 	}
 
-	return &output, nil
+	return output.Data, nil
 }
 
 func (c *WndClient) ServerList(ctx context.Context) (ServerList, error) {

@@ -183,7 +183,9 @@ func run() int {
 			mainLogger.Error("Unable to save state file! Error: %v", err)
 		}
 	} else {
+		wndc.Mux.Lock()
 		wndc.State = *state
+		wndc.Mux.Unlock()
 	}
 
 	var serverList wndclient.ServerList
@@ -206,10 +208,19 @@ func run() int {
 		return printLocations(serverList)
 	}
 
-	//if len(ips) == 0 {
-	//	mainLogger.Critical("Empty endpoint list!")
-	//	return 13
-	//}
+	var proxyHostname string
+	if args.location == "" {
+		ctx, cl := context.WithTimeout(context.Background(), args.timeout)
+		bestLocation, err := wndc.BestLocation(ctx)
+		cl()
+		if err != nil {
+			mainLogger.Critical("Unable to get best location endpoint: %v", err)
+			return 13
+		}
+		proxyHostname = bestLocation.Hostname
+	} else {
+		return 0
+	}
 
 	//runTicker(context.Background(), args.refresh, args.refreshRetry, func(ctx context.Context) error {
 	//	mainLogger.Info("Refreshing login...")
@@ -234,7 +245,6 @@ func run() int {
 	//	return nil
 	//})
 
-	//endpoint := ips[0]
 	auth := func() string {
 		return basic_auth_header(wndc.GetProxyCredentials())
 	}
@@ -254,16 +264,15 @@ func run() int {
 	}
 
 	// TODO: set servername
-	//handlerDialer := NewProxyDialer(endpoint.NetAddr(), "", auth, caPool, dialer)
-	//mainLogger.Info("Endpoint: %s", endpoint.NetAddr())
-	//mainLogger.Info("Starting proxy server...")
-	//handler := NewProxyHandler(handlerDialer, proxyLogger)
-	//mainLogger.Info("Init complete.")
-	//err = http.ListenAndServe(args.bindAddress, handler)
-	//mainLogger.Critical("Server terminated with a reason: %v", err)
-	//mainLogger.Info("Shutting down...")
-	_ = proxyLogger
-	_ = auth
+	proxyNetAddr := net.JoinHostPort(proxyHostname, strconv.FormatUint(uint64(ASSUMED_PROXY_PORT), 10))
+	handlerDialer := NewProxyDialer(proxyNetAddr, proxyHostname, auth, caPool, dialer)
+	mainLogger.Info("Endpoint: %s", proxyNetAddr)
+	mainLogger.Info("Starting proxy server...")
+	handler := NewProxyHandler(handlerDialer, proxyLogger)
+	mainLogger.Info("Init complete.")
+	err = http.ListenAndServe(args.bindAddress, handler)
+	mainLogger.Critical("Server terminated with a reason: %v", err)
+	mainLogger.Info("Shutting down...")
 	return 0
 }
 
