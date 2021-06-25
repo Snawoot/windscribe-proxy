@@ -366,6 +366,7 @@ func loadState(filename string) (*wndclient.WndClientState, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer file.Close()
 
 	var state wndclient.WndClientState
 	dec := json.NewDecoder(file)
@@ -382,6 +383,7 @@ func saveState(filename string, state *wndclient.WndClientState) error {
 	if err != nil {
 		return err
 	}
+	defer file.Close()
 
 	enc := json.NewEncoder(file)
 	enc.SetIndent("", "    ")
