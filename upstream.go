@@ -36,7 +36,6 @@ type ProxyDialer struct {
 	tlsServerName          string
 	auth                   AuthProvider
 	next                   ContextDialer
-	intermediateWorkaround bool
 	caPool                 *x509.CertPool
 }
 
