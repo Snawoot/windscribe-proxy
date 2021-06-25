@@ -33,6 +33,7 @@ type WndEndpoints struct {
 	Users             string `json:"Users"`
 	ServerList        string `json:"serverlist"`
 	ServerCredentials string `json:"ServerCredentials"`
+	BestLocation      string `json:"BestLocation"`
 }
 
 var DefaultWndEndpoints = WndEndpoints{
@@ -40,6 +41,7 @@ var DefaultWndEndpoints = WndEndpoints{
 	Users:             "https://api.windscribe.com/Users",
 	ServerList:        "https://assets.windscribe.com/serverlist",
 	ServerCredentials: "https://api.windscribe.com/ServerCredentials",
+	BestLocation:      "https://api.windscribe.com/BestLocation",
 }
 
 type WndSettings struct {
@@ -191,6 +193,35 @@ func (c *WndClient) ServerCredentials(ctx context.Context) error {
 	c.State.ProxyPassword = string(output.Data.Password)
 
 	return nil
+}
+
+func (c *WndClient) BestLocation(ctx context.Context) (*BestLocationResponse, error) {
+	c.Mux.Lock()
+	defer c.Mux.Unlock()
+
+	clientAuthHash, authTime := MakeAuthHash(c.State.Settings.ClientAuthSecret)
+
+	requestUrl, err := url.Parse(c.State.Settings.Endpoints.ServerCredentials)
+	if err != nil {
+		return nil, err
+	}
+	queryValues := requestUrl.Query()
+	queryValues.Set("client_auth_hash", clientAuthHash)
+	queryValues.Set("session_auth_hash", c.State.SessionAuthHash)
+	queryValues.Set("time", strconv.FormatInt(authTime, 10))
+	requestUrl.RawQuery = queryValues.Encode()
+
+	var output BestLocationResponse
+
+	err = c.getJSON(ctx, requestUrl.String(), &output)
+	if err != nil {
+		return nil, err
+	}
+	if output.Data == nil {
+		return nil, ErrNoDataInResponse
+	}
+
+	return &output, nil
 }
 
 func (c *WndClient) ServerList(ctx context.Context) (ServerList, error) {
