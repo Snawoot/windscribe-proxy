@@ -179,6 +179,9 @@ func run() int {
 		mainLogger.Critical("Unable to construct WndClient: %v", err)
 		return 8
 	}
+	wndc.Mux.Lock()
+	wndc.State.Settings.ClientAuthSecret = args.clientAuthSecret
+	wndc.Mux.Unlock()
 
 	// Try ressurect state
 	state, err := loadState(args.stateFile)
