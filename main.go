@@ -54,7 +54,7 @@ type CLIArgs struct {
 	timeout          time.Duration
 	showVersion      bool
 	proxy            string
-	bootstrapDNS     string
+	resolver         string
 	caFile           string
 	clientAuthSecret string
 	stateFile        string
@@ -74,8 +74,8 @@ func parse_args() CLIArgs {
 		"Format: <http|https|socks5|socks5h>://[login:password@]host[:port] "+
 		"Examples: http://user:password@192.168.1.1:3128, socks5://10.0.0.1:1080")
 	// TODO: implement DNS resolving or remove it
-	flag.StringVar(&args.bootstrapDNS, "bootstrap-dns", "",
-		"DNS/DoH/DoT/DoQ resolver for initial discovering of SurfEasy API address. "+
+	flag.StringVar(&args.resolver, "resolver", "",
+		"Use DNS/DoH/DoT/DoQ resolver for all dial-outs. "+
 			"See https://github.com/ameshkov/dnslookup/ for upstream DNS URL format. "+
 			"Examples: https://1.1.1.1/dns-query, quic://dns.adguard.com")
 	flag.StringVar(&args.caFile, "cafile", "", "use custom CA certificate bundle file")
@@ -99,6 +99,7 @@ func proxyFromURLWrapper(u *url.URL, next xproxy.Dialer) (xproxy.Dialer, error) 
 }
 
 func run() int {
+	var err error
 	args := parse_args()
 	if args.showVersion {
 		fmt.Println(version)
@@ -112,6 +113,9 @@ func run() int {
 		log.LstdFlags|log.Lshortfile),
 		args.verbosity)
 	proxyLogger := NewCondLogger(log.New(logWriter, "PROXY   : ",
+		log.LstdFlags|log.Lshortfile),
+		args.verbosity)
+	resolverLogger := NewCondLogger(log.New(logWriter, "RESOLVER: ",
 		log.LstdFlags|log.Lshortfile),
 		args.verbosity)
 
@@ -150,6 +154,14 @@ func run() int {
 			return 7
 		}
 		dialer = pxDialer.(ContextDialer)
+	}
+
+	if args.resolver != "" {
+		dialer, err = NewResolvingDialer(args.resolver, args.timeout, dialer, resolverLogger)
+		if err != nil {
+			mainLogger.Critical("Unable to instantiate resolver: %v", err)
+			return 5
+		}
 	}
 
 	wndclientDialer := dialer

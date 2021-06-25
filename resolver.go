@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/AdguardTeam/dnsproxy/upstream"
-	"github.com/miekg/dns"
 	"github.com/ReneKroon/ttlcache/v2"
+	"github.com/miekg/dns"
 )
 
 type Resolver struct {
@@ -16,7 +17,7 @@ type Resolver struct {
 }
 
 const (
-	DOT = 0x2e
+	DOT                  = 0x2e
 	DNS_CACHE_SIZE_LIMIT = 1024
 )
 
@@ -92,9 +93,10 @@ type ResolvingDialer struct {
 	upstream upstream.Upstream
 	cache4   *ttlcache.Cache
 	cache6   *ttlcache.Cache
+	logger   *CondLogger
 }
 
-func NewResolvingDialer(resolverAddress string, timeout time.Duration, next ContextDialer) (*ResolvingDialer, error) {
+func NewResolvingDialer(resolverAddress string, timeout time.Duration, next ContextDialer, logger *CondLogger) (*ResolvingDialer, error) {
 	opts := upstream.Options{Timeout: timeout}
 	u, err := upstream.AddressToUpstream(resolverAddress, opts)
 	if err != nil {
@@ -104,9 +106,10 @@ func NewResolvingDialer(resolverAddress string, timeout time.Duration, next Cont
 	cache6 := ttlcache.NewCache()
 	d := &ResolvingDialer{
 		upstream: u,
-		next: next,
-		cache4: cache4,
-		cache6: cache6,
+		next:     next,
+		cache4:   cache4,
+		cache6:   cache6,
+		logger:   logger,
 	}
 	cache4.SetLoaderFunction(d.resolveA)
 	cache6.SetLoaderFunction(d.resolveAAAA)
@@ -119,10 +122,12 @@ func NewResolvingDialer(resolverAddress string, timeout time.Duration, next Cont
 }
 
 func (d *ResolvingDialer) resolveA(domain string) (interface{}, time.Duration, error) {
+	d.logger.Debug("resolveA(%#v)", domain)
 	return d.resolve(domain, dns.TypeA)
 }
 
 func (d *ResolvingDialer) resolveAAAA(domain string) (interface{}, time.Duration, error) {
+	d.logger.Debug("resolveAAAA(%#v)", domain)
 	return d.resolve(domain, dns.TypeAAAA)
 }
 
@@ -151,7 +156,7 @@ func (d *ResolvingDialer) resolve(domain string, typ uint16) (string, time.Durat
 }
 
 func (d *ResolvingDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
-	name, _, err := net.SplitHostPort(address)
+	name, port, err := net.SplitHostPort(address)
 	if err != nil {
 		return nil, err
 	}
@@ -165,15 +170,33 @@ func (d *ResolvingDialer) DialContext(ctx context.Context, network, address stri
 		return d.next.DialContext(ctx, network, address)
 	}
 
+	name = absDomain(name)
 	switch network[len(network)-1] {
 	case '4':
-		//
+		res, err := d.cache4.Get(name)
+		if err != nil {
+			return nil, err
+		}
+		name = res.(string)
 	case '6':
-		//
+		res, err := d.cache6.Get(name)
+		if err != nil {
+			return nil, err
+		}
+		name = res.(string)
 	default:
-		//
+		res, err := d.cache4.Get(name)
+		if err != nil {
+			res, err = d.cache6.Get(name)
+			if err != nil {
+				return nil, err
+			}
+		}
+		name = res.(string)
 	}
-	return d.next.DialContext(ctx, network, address)
+	newAddress := net.JoinHostPort(name, port)
+	d.logger.Debug("resolve rewrite: %s => %s", address, newAddress)
+	return d.next.DialContext(ctx, network, newAddress)
 }
 
 func (d *ResolvingDialer) Dial(network, address string) (net.Conn, error) {
@@ -187,5 +210,5 @@ func absDomain(domain string) string {
 	if domain[len(domain)-1] != DOT {
 		domain = domain + "."
 	}
-	return domain
+	return strings.ToLower(domain)
 }

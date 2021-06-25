@@ -32,11 +32,11 @@ type ContextDialer interface {
 }
 
 type ProxyDialer struct {
-	address                string
-	tlsServerName          string
-	auth                   AuthProvider
-	next                   ContextDialer
-	caPool                 *x509.CertPool
+	address       string
+	tlsServerName string
+	auth          AuthProvider
+	next          ContextDialer
+	caPool        *x509.CertPool
 }
 
 func NewProxyDialer(address, tlsServerName string, auth AuthProvider, caPool *x509.CertPool, nextDialer ContextDialer) *ProxyDialer {
