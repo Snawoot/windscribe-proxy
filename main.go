@@ -55,8 +55,6 @@ type CLIArgs struct {
 	showVersion      bool
 	proxy            string
 	bootstrapDNS     string
-	refresh          time.Duration
-	refreshRetry     time.Duration
 	caFile           string
 	clientAuthSecret string
 	stateFile        string
@@ -80,8 +78,6 @@ func parse_args() CLIArgs {
 		"DNS/DoH/DoT/DoQ resolver for initial discovering of SurfEasy API address. "+
 			"See https://github.com/ameshkov/dnslookup/ for upstream DNS URL format. "+
 			"Examples: https://1.1.1.1/dns-query, quic://dns.adguard.com")
-	flag.DurationVar(&args.refresh, "refresh", 4*time.Hour, "login refresh interval")
-	flag.DurationVar(&args.refreshRetry, "refresh-retry", 5*time.Second, "login refresh retry interval")
 	flag.StringVar(&args.caFile, "cafile", "", "use custom CA certificate bundle file")
 	flag.StringVar(&args.clientAuthSecret, "auth-secret", DEFAULT_CLIENT_AUTH_SECRET, "client auth secret")
 	flag.StringVar(&args.stateFile, "state-file", "wndstate.json", "file name used to persist "+
