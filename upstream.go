@@ -199,6 +199,9 @@ func NewNoSNIDialer(caPool *x509.CertPool, nextDialer ContextDialer) *NoSNIDiale
 
 func (d *NoSNIDialer) DialTLSContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	conn, err := d.next.DialContext(ctx, network, addr)
+	if err != nil {
+		return nil, err
+	}
 
 	name, _, err := net.SplitHostPort(addr)
 	if err != nil {
