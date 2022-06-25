@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/AdguardTeam/dnsproxy/upstream"
-	"github.com/ReneKroon/ttlcache/v2"
+	"github.com/jellydator/ttlcache/v2"
 	"github.com/miekg/dns"
 )
 
@@ -30,7 +30,7 @@ type ResolvingDialer struct {
 }
 
 func NewResolvingDialer(resolverAddress string, timeout time.Duration, next ContextDialer, logger *CondLogger) (*ResolvingDialer, error) {
-	opts := upstream.Options{Timeout: timeout}
+	opts := &upstream.Options{Timeout: timeout}
 	u, err := upstream.AddressToUpstream(resolverAddress, opts)
 	if err != nil {
 		return nil, err
