@@ -5,8 +5,8 @@ go 1.16
 require (
 	github.com/AdguardTeam/dnsproxy v0.43.1
 	github.com/AdguardTeam/golibs v0.10.9 // indirect
-	github.com/ReneKroon/ttlcache/v2 v2.7.0
 	github.com/fsnotify/fsnotify v1.5.4 // indirect
+	github.com/jellydator/ttlcache/v2 v2.11.1
 	github.com/lucas-clemente/quic-go v0.27.2 // indirect
 	github.com/miekg/dns v1.1.50
 	golang.org/x/crypto v0.0.0-20220622213112-05595931fe9d // indirect
