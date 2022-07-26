@@ -70,10 +70,12 @@ windscribe-proxy -list-proxies
 | list-locations | - | list available locations and exit |
 | list-proxies | - | output proxy list and exit |
 | location | String | desired proxy location. Default: best location |
+| password | String | password for login |
 | proxy | String | sets base proxy to use for all dial-outs. Format: `<http\|https\|socks5\|socks5h>://[login:password@]host[:port]` Examples: `http://user:password@192.168.1.1:3128`, `socks5://10.0.0.1:1080` |
 | resolver | String | Use DNS/DoH/DoT/DoQ resolver for all dial-outs. See https://github.com/ameshkov/dnslookup/ for upstream DNS URL format. Examples: `https://1.1.1.1/dns-query`, `quic://dns.adguard.com` |
 | state-file | String | file name used to persist Windscribe API client state. Default: `wndstate.json` |
 | timeout | Duration | timeout for network operations. Default: `10s` |
+| username | String | username for login |
 | verbosity | Number | logging verbosity (10 - debug, 20 - info, 30 - warning, 40 - error, 50 - critical). Default: `20` |
 | version | - | show program version and exit |
 
