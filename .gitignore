@@ -16,4 +16,4 @@
 bin/
 *.snap
 windscribe-proxy
-wndstate.json
+wndstate.json*
