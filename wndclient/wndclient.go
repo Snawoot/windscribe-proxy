@@ -12,8 +12,8 @@ import (
 	"net/url"
 	"path"
 	"strconv"
+	"strings"
 	"sync"
-	"time"
 )
 
 const (
@@ -30,16 +30,14 @@ const (
 var ErrNoDataInResponse = errors.New("no \"data\" key in response")
 
 type WndEndpoints struct {
-	RegisterToken     string `json:"RegisterToken"`
-	Users             string `json:"Users"`
+	Session           string `json:"Session"`
 	ServerList        string `json:"serverlist"`
 	ServerCredentials string `json:"ServerCredentials"`
 	BestLocation      string `json:"BestLocation"`
 }
 
 var DefaultWndEndpoints = WndEndpoints{
-	RegisterToken:     "https://api.windscribe.com/RegToken",
-	Users:             "https://api.windscribe.com/Users",
+	Session:           "https://api.windscribe.com/Session",
 	ServerList:        "https://assets.windscribe.com/serverlist",
 	ServerCredentials: "https://api.windscribe.com/ServerCredentials",
 	BestLocation:      "https://api.windscribe.com/BestLocation",
@@ -59,7 +57,7 @@ var DefaultWndSettings = WndSettings{
 	ClientAuthSecret: "952b4412f002315aa50751032fcaab03",
 	Platform:         "chrome",
 	Type:             "chrome",
-	UserAgent:        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.101 Safari/537.36",
+	UserAgent:        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.53 Safari/537.36",
 	Origin:           "chrome-extension://hnmpcagpplmpfojmgmnngilcnanddlhb",
 	SessionType:      SESSION_TYPE_EXT,
 	Endpoints:        DefaultWndEndpoints,
@@ -104,49 +102,22 @@ func NewWndClient(transport http.RoundTripper) (*WndClient, error) {
 	}, nil
 }
 
-func (c *WndClient) RegisterToken(ctx context.Context) error {
+func (c *WndClient) Session(ctx context.Context, username, password string) error {
 	c.Mux.Lock()
 	defer c.Mux.Unlock()
 
 	clientAuthHash, authTime := MakeAuthHash(c.State.Settings.ClientAuthSecret)
-	input := RegisterTokenRequest{
-		ClientAuthHash: clientAuthHash,
-		Time:           authTime,
+	input := url.Values{
+		"client_auth_hash": []string{clientAuthHash},
+		"time":             []string{strconv.FormatInt(authTime, 10)},
+		"session_type_id":  []string{strconv.FormatInt(SESSION_TYPE_EXT, 10)},
+		"username":         []string{username},
+		"password":         []string{password},
 	}
 
-	var output RegisterTokenResponse
+	var output SessionResponse
 
-	err := c.postJSON(ctx, c.State.Settings.Endpoints.RegisterToken, input, &output)
-	if err != nil {
-		return err
-	}
-	if output.Data == nil {
-		return ErrNoDataInResponse
-	}
-
-	c.State.TokenID = output.Data.TokenID
-	c.State.Token = output.Data.Token
-	c.State.TokenSignature = output.Data.TokenSignature
-	c.State.TokenSignatureTime = output.Data.TokenTime
-
-	return nil
-}
-
-func (c *WndClient) Users(ctx context.Context) error {
-	c.Mux.Lock()
-	defer c.Mux.Unlock()
-
-	clientAuthHash, authTime := MakeAuthHash(c.State.Settings.ClientAuthSecret)
-	input := UsersRequest{
-		ClientAuthHash: clientAuthHash,
-		Time:           authTime,
-		SessionType:    SESSION_TYPE_EXT,
-		Token:          c.State.Token,
-	}
-
-	var output UsersResponse
-
-	err := c.postJSON(ctx, c.State.Settings.Endpoints.Users, input, &output)
+	err := c.postForm(ctx, c.State.Settings.Endpoints.Session, input, &output)
 	if err != nil {
 		return err
 	}
@@ -272,6 +243,48 @@ func (c *WndClient) postJSON(ctx context.Context, endpoint string, input, output
 
 	c.populateRequest(req)
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		errBodyBytes, _ := ioutil.ReadAll(
+			&io.LimitedReader{
+				R: resp.Body,
+				N: 1024,
+			})
+		defer resp.Body.Close()
+		return fmt.Errorf("bad http status: %s, headers: %#v, body: %q",
+			resp.Status, resp.Header, string(errBodyBytes))
+	}
+
+	decoder := json.NewDecoder(resp.Body)
+	err = decoder.Decode(output)
+	cleanupBody(resp.Body)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *WndClient) postForm(ctx context.Context, endpoint string, input url.Values, output interface{}) error {
+	req, err := http.NewRequestWithContext(
+		ctx,
+		"POST",
+		endpoint,
+		strings.NewReader(input.Encode()),
+	)
+	if err != nil {
+		return err
+	}
+
+	c.populateRequest(req)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := c.httpClient.Do(req)
