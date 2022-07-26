@@ -14,6 +14,24 @@ type RegisterTokenResponse struct {
 	} `json:"data"`
 }
 
+type SessionResponse struct {
+	Data *struct {
+		SessionAuthHash  string  `json:"session_auth_hash"`
+		Username         string  `json:"username"`
+		UserID           string  `json:"user_id"`
+		TrafficUsed      float64 `json:"traffic_used"`
+		TrafficMax       float64 `json:"traffic_max"`
+		Status           int     `json:"status"`
+		Email            *string `json:"email"`
+		EmailStatus      int     `json:"email_status"`
+		BillingPlanID    int64   `json:"billing_plan_id"`
+		IsPremium        int     `json:"is_premium"`
+		RegDate          float64 `json:"reg_date"`
+		LocationRevision int     `json:"loc_rev"`
+		LocationHash     string  `json:"loc_hash"`
+	} `json:"data"`
+}
+
 type UsersRequest struct {
 	ClientAuthHash string `json:"client_auth_hash"`
 	SessionType    int    `json:"session_type_id"`
