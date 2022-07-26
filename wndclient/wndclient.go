@@ -13,6 +13,7 @@ import (
 	"path"
 	"strconv"
 	"sync"
+	"time"
 )
 
 const (
@@ -279,7 +280,14 @@ func (c *WndClient) postJSON(ctx context.Context, endpoint string, input, output
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return fmt.Errorf("bad http status: %s, headers: %#v", resp.Status, resp.Header)
+		errBodyBytes, _ := ioutil.ReadAll(
+			&io.LimitedReader{
+				R: resp.Body,
+				N: 1024,
+			})
+		defer resp.Body.Close()
+		return fmt.Errorf("bad http status: %s, headers: %#v, body: %q",
+			resp.Status, resp.Header, string(errBodyBytes))
 	}
 
 	decoder := json.NewDecoder(resp.Body)
@@ -319,7 +327,14 @@ func (c *WndClient) getJSON(ctx context.Context, requestUrl string, output inter
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return fmt.Errorf("bad http status: %s, headers: %#v", resp.Status, resp.Header)
+		errBodyBytes, _ := ioutil.ReadAll(
+			&io.LimitedReader{
+				R: resp.Body,
+				N: 1024,
+			})
+		defer resp.Body.Close()
+		return fmt.Errorf("bad http status: %s, headers: %#v, body: %q",
+			resp.Status, resp.Header, string(errBodyBytes))
 	}
 
 	decoder := json.NewDecoder(resp.Body)

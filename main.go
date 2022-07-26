@@ -372,21 +372,21 @@ func coldInit(wndc *wndclient.WndClient, timeout time.Duration) error {
 	err := wndc.RegisterToken(ctx)
 	cl()
 	if err != nil {
-		return err
+		return fmt.Errorf("RegisterToken call failed: %w", err)
 	}
 
 	ctx, cl = context.WithTimeout(context.Background(), timeout)
 	err = wndc.Users(ctx)
 	cl()
 	if err != nil {
-		return err
+		return fmt.Errorf("Users call failed: %w", err)
 	}
 
 	ctx, cl = context.WithTimeout(context.Background(), timeout)
 	err = wndc.ServerCredentials(ctx)
 	cl()
 	if err != nil {
-		return err
+		return fmt.Errorf("ServerCredentials call failed: %w", err)
 	}
 
 	return nil
