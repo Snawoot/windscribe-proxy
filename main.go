@@ -60,6 +60,7 @@ type CLIArgs struct {
 	stateFile        string
 	username         string
 	password         string
+	tfacode          string
 }
 
 func parse_args() CLIArgs {
@@ -86,6 +87,7 @@ func parse_args() CLIArgs {
 		"Windscribe API client state")
 	flag.StringVar(&args.username, "username", "", "username for login")
 	flag.StringVar(&args.password, "password", "", "password for login")
+	flag.StringVar(&args.tfacode, "2fa", "", "2FA code for login")
 	flag.Parse()
 	if args.listLocations && args.listProxies {
 		arg_fail("list-locations and list-proxies flags are mutually exclusive")
@@ -191,7 +193,7 @@ func run() int {
 	state, err := loadState(args.stateFile)
 	if err != nil {
 		mainLogger.Warning("Failed to load client state: %v. Performing cold init...", err)
-		err = coldInit(wndc, args.username, args.password, args.timeout)
+		err = coldInit(wndc, args.username, args.password, args.tfacode, args.timeout)
 		if err != nil {
 			mainLogger.Critical("Cold init failed: %v", err)
 			return 9
@@ -371,9 +373,9 @@ func saveState(filename string, state *wndclient.WndClientState) error {
 	return err
 }
 
-func coldInit(wndc *wndclient.WndClient, username, password string, timeout time.Duration) error {
+func coldInit(wndc *wndclient.WndClient, username, password, tfacode string, timeout time.Duration) error {
 	ctx, cl := context.WithTimeout(context.Background(), timeout)
-	err := wndc.Session(ctx, username, password)
+	err := wndc.Session(ctx, username, password, tfacode)
 	cl()
 	if err != nil {
 		return fmt.Errorf("Session call failed: %w", err)

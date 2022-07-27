@@ -102,7 +102,7 @@ func NewWndClient(transport http.RoundTripper) (*WndClient, error) {
 	}, nil
 }
 
-func (c *WndClient) Session(ctx context.Context, username, password string) error {
+func (c *WndClient) Session(ctx context.Context, username, password, tfacode string) error {
 	c.Mux.Lock()
 	defer c.Mux.Unlock()
 
@@ -113,6 +113,9 @@ func (c *WndClient) Session(ctx context.Context, username, password string) erro
 		"session_type_id":  []string{strconv.FormatInt(SESSION_TYPE_EXT, 10)},
 		"username":         []string{username},
 		"password":         []string{password},
+	}
+	if tfacode != "" {
+		input["2fa_code"] = []string{tfacode}
 	}
 
 	var output SessionResponse

@@ -64,6 +64,7 @@ windscribe-proxy -list-proxies
 
 | Argument | Type | Description |
 | -------- | ---- | ----------- |
+| 2fa | String | 2FA code for login |
 | auth-secret | String | client auth secret (default `952b4412f002315aa50751032fcaab03`) |
 | bind-address | String | HTTP proxy listen address (default `127.0.0.1:28080`) |
 | cafile | String | use custom CA certificate bundle file |
