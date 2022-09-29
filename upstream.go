@@ -209,6 +209,7 @@ func (d *NoSNIDialer) DialTLSContext(ctx context.Context, network, addr string) 
 	}
 
 	tlsConfig := &tls.Config{
+		MinVersion:         tls.VersionTLS13,
 		ServerName:         "",
 		InsecureSkipVerify: true,
 		VerifyConnection: func(cs tls.ConnectionState) error {
