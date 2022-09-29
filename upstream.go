@@ -37,15 +37,17 @@ type ProxyDialer struct {
 	auth          AuthProvider
 	next          ContextDialer
 	caPool        *x509.CertPool
+	sni           string
 }
 
-func NewProxyDialer(address, tlsServerName string, auth AuthProvider, caPool *x509.CertPool, nextDialer ContextDialer) *ProxyDialer {
+func NewProxyDialer(address, tlsServerName, sni string, auth AuthProvider, caPool *x509.CertPool, nextDialer ContextDialer) *ProxyDialer {
 	return &ProxyDialer{
 		address:       address,
 		tlsServerName: tlsServerName,
 		auth:          auth,
 		next:          nextDialer,
 		caPool:        caPool,
+		sni:           sni,
 	}
 }
 
@@ -79,7 +81,7 @@ func ProxyDialerFromURL(u *url.URL, next ContextDialer) (*ProxyDialer, error) {
 			return authHeader
 		}
 	}
-	return NewProxyDialer(address, tlsServerName, auth, nil, next), nil
+	return NewProxyDialer(address, tlsServerName, "", auth, nil, next), nil
 }
 
 func (d *ProxyDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
@@ -99,7 +101,8 @@ func (d *ProxyDialer) DialContext(ctx context.Context, network, address string) 
 		// DO NOT send SNI extension of TLS ClientHello
 		// DO peer certificate verification against specified servername
 		conn = tls.Client(conn, &tls.Config{
-			ServerName:         "",
+			MinVersion:         tls.VersionTLS13,
+			ServerName:         d.sni,
 			InsecureSkipVerify: true,
 			VerifyConnection: func(cs tls.ConnectionState) error {
 				opts := x509.VerifyOptions{
@@ -185,19 +188,21 @@ func readResponse(r io.Reader, req *http.Request) (*http.Response, error) {
 	return http.ReadResponse(bufio.NewReader(buf), req)
 }
 
-type NoSNIDialer struct {
+type FakeSNIDialer struct {
 	caPool *x509.CertPool
 	next   ContextDialer
+	sni    string
 }
 
-func NewNoSNIDialer(caPool *x509.CertPool, nextDialer ContextDialer) *NoSNIDialer {
-	return &NoSNIDialer{
+func NewFakeSNIDialer(caPool *x509.CertPool, sni string, nextDialer ContextDialer) *FakeSNIDialer {
+	return &FakeSNIDialer{
 		caPool: caPool,
 		next:   nextDialer,
+		sni:    sni,
 	}
 }
 
-func (d *NoSNIDialer) DialTLSContext(ctx context.Context, network, addr string) (net.Conn, error) {
+func (d *FakeSNIDialer) DialTLSContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	conn, err := d.next.DialContext(ctx, network, addr)
 	if err != nil {
 		return nil, err
@@ -209,7 +214,8 @@ func (d *NoSNIDialer) DialTLSContext(ctx context.Context, network, addr string) 
 	}
 
 	tlsConfig := &tls.Config{
-		ServerName:         "",
+		MinVersion:         tls.VersionTLS13,
+		ServerName:         d.sni,
 		InsecureSkipVerify: true,
 		VerifyConnection: func(cs tls.ConnectionState) error {
 			opts := x509.VerifyOptions{

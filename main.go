@@ -61,6 +61,7 @@ type CLIArgs struct {
 	username         string
 	password         string
 	tfacode          string
+	fakeSNI          string
 }
 
 func parse_args() CLIArgs {
@@ -88,6 +89,7 @@ func parse_args() CLIArgs {
 	flag.StringVar(&args.username, "username", "", "username for login")
 	flag.StringVar(&args.password, "password", "", "password for login")
 	flag.StringVar(&args.tfacode, "2fa", "", "2FA code for login")
+	flag.StringVar(&args.fakeSNI, "fake-sni", "com", "fake SNI to use to contact windscribe servers")
 	flag.Parse()
 	if args.listLocations && args.listProxies {
 		arg_fail("list-locations and list-proxies flags are mutually exclusive")
@@ -174,7 +176,7 @@ func run() int {
 
 	wndc, err := wndclient.NewWndClient(&http.Transport{
 		DialContext:           wndclientDialer.DialContext,
-		DialTLSContext:        NewNoSNIDialer(caPool, wndclientDialer).DialTLSContext,
+		DialTLSContext:        NewFakeSNIDialer(caPool, args.fakeSNI, wndclientDialer).DialTLSContext,
 		ForceAttemptHTTP2:     true,
 		MaxIdleConns:          100,
 		IdleConnTimeout:       90 * time.Second,
@@ -251,7 +253,7 @@ func run() int {
 	}
 
 	proxyNetAddr := net.JoinHostPort(proxyHostname, strconv.FormatUint(uint64(ASSUMED_PROXY_PORT), 10))
-	handlerDialer := NewProxyDialer(proxyNetAddr, proxyHostname, auth, caPool, dialer)
+	handlerDialer := NewProxyDialer(proxyNetAddr, proxyHostname, args.fakeSNI, auth, caPool, dialer)
 	mainLogger.Info("Endpoint: %s", proxyNetAddr)
 	mainLogger.Info("Starting proxy server...")
 	handler := NewProxyHandler(handlerDialer, proxyLogger)
