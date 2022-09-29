@@ -91,7 +91,7 @@ func (d *ProxyDialer) DialContext(ctx context.Context, network, address string) 
 
 	conn, err := d.next.DialContext(ctx, "tcp", d.address)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("proxy dial failed: %w", err)
 	}
 
 	if d.tlsServerName != "" {
@@ -134,21 +134,21 @@ func (d *ProxyDialer) DialContext(ctx context.Context, network, address string) 
 
 	rawreq, err := httputil.DumpRequest(req, false)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to prepare request for proxy: %w", err)
 	}
 
 	_, err = conn.Write(rawreq)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to send request to proxy: %w", err)
 	}
 
 	proxyResp, err := readResponse(conn, req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to read proxy response: %w", err)
 	}
 
 	if proxyResp.StatusCode != http.StatusOK {
-		return nil, errors.New(fmt.Sprintf("bad response from upstream proxy server: %s", proxyResp.Status))
+		return nil, fmt.Errorf("bad response from upstream proxy server: %s", proxyResp.Status)
 	}
 
 	return conn, nil

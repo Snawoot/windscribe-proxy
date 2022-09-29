@@ -251,7 +251,7 @@ func run() int {
 	}
 
 	proxyNetAddr := net.JoinHostPort(proxyHostname, strconv.FormatUint(uint64(ASSUMED_PROXY_PORT), 10))
-	handlerDialer := NewProxyDialer(proxyNetAddr, proxyHostname, auth, caPool, dialer)
+	handlerDialer := NewProxyDialer(proxyNetAddr, "a", auth, caPool, dialer)
 	mainLogger.Info("Endpoint: %s", proxyNetAddr)
 	mainLogger.Info("Starting proxy server...")
 	handler := NewProxyHandler(handlerDialer, proxyLogger)
