@@ -83,3 +83,4 @@ windscribe-proxy -list-proxies
 ## See also
 
 * [Project wiki](https://github.com/Snawoot/windscribe-proxy/wiki)
+* [Community in Telegram](https://t.me/alternative_proxy)
