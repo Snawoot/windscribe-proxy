@@ -68,6 +68,8 @@ windscribe-proxy -list-proxies
 | auth-secret | String | client auth secret (default `952b4412f002315aa50751032fcaab03`) |
 | bind-address | String | HTTP proxy listen address (default `127.0.0.1:28080`) |
 | cafile | String | use custom CA certificate bundle file |
+| fake-sni | String | fake SNI to use to contact windscribe servers (default "com") |
+| force-cold-init | - | force cold init |
 | list-locations | - | list available locations and exit |
 | list-proxies | - | output proxy list and exit |
 | location | String | desired proxy location. Default: best location |
