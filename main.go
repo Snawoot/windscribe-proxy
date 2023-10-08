@@ -62,6 +62,7 @@ type CLIArgs struct {
 	password         string
 	tfacode          string
 	fakeSNI          string
+	forceColdInit    bool
 }
 
 func parse_args() CLIArgs {
@@ -90,6 +91,7 @@ func parse_args() CLIArgs {
 	flag.StringVar(&args.password, "password", "", "password for login")
 	flag.StringVar(&args.tfacode, "2fa", "", "2FA code for login")
 	flag.StringVar(&args.fakeSNI, "fake-sni", "com", "fake SNI to use to contact windscribe servers")
+	flag.BoolVar(&args.forceColdInit, "force-cold-init", false, "force cold init")
 	flag.Parse()
 	if args.listLocations && args.listProxies {
 		arg_fail("list-locations and list-proxies flags are mutually exclusive")
@@ -192,9 +194,14 @@ func run() int {
 	wndc.Mux.Unlock()
 
 	// Try ressurect state
-	state, err := loadState(args.stateFile)
+	state, err := maybeLoadState(args.forceColdInit, args.stateFile)
 	if err != nil {
-		mainLogger.Warning("Failed to load client state: %v. It is OK for a first run. Performing cold init...", err)
+		switch err {
+		case errColdInitForced:
+			mainLogger.Info("Cold init forced.")
+		default:
+			mainLogger.Warning("Failed to load client state: %v. It is OK for a first run. Performing cold init...", err)
+		}
 		err = coldInit(wndc, args.username, args.password, args.tfacode, args.timeout)
 		if err != nil {
 			mainLogger.Critical("Cold init failed: %v", err)
@@ -343,6 +350,14 @@ func pickServer(serverList wndclient.ServerList, location string) string {
 	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	return candidates[rnd.Intn(len(candidates))]
+}
+
+var errColdInitForced = errors.New("cold init forced!")
+func maybeLoadState(forceColdInit bool, filename string) (*wndclient.WndClientState, error) {
+	if forceColdInit {
+		return nil, errColdInitForced
+	}
+	return loadState(filename)
 }
 
 func loadState(filename string) (*wndclient.WndClientState, error) {
