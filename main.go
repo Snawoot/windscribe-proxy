@@ -193,7 +193,7 @@ func run() int {
 	wndc.State.Settings.ClientAuthSecret = args.clientAuthSecret
 	wndc.Mux.Unlock()
 
-	// Try ressurect state
+	// Try to resurrect state
 	state, err := maybeLoadState(args.forceColdInit, args.stateFile)
 	if err != nil {
 		switch err {
