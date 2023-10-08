@@ -194,7 +194,7 @@ func run() int {
 	// Try ressurect state
 	state, err := loadState(args.stateFile)
 	if err != nil {
-		mainLogger.Warning("Failed to load client state: %v. Performing cold init...", err)
+		mainLogger.Warning("Failed to load client state: %v. It is OK for a first run. Performing cold init...", err)
 		err = coldInit(wndc, args.username, args.password, args.tfacode, args.timeout)
 		if err != nil {
 			mainLogger.Critical("Cold init failed: %v", err)
@@ -376,6 +376,9 @@ func saveState(filename string, state *wndclient.WndClientState) error {
 }
 
 func coldInit(wndc *wndclient.WndClient, username, password, tfacode string, timeout time.Duration) error {
+	if username == "" || password == "" {
+		return errors.New(`Please provide "-username" and "-password" command line arguments!`)
+	}
 	ctx, cl := context.WithTimeout(context.Background(), timeout)
 	err := wndc.Session(ctx, username, password, tfacode)
 	cl()
