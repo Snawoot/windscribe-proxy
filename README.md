@@ -70,6 +70,8 @@ windscribe-proxy -list-proxies
 | cafile | String | use custom CA certificate bundle file |
 | fake-sni | String | fake SNI to use to contact windscribe servers (default "com") |
 | force-cold-init | - | force cold init |
+| init-retries | Number | number of attempts for initialization steps, zero for unlimited retry |
+| init-retry-interval | Duration | delay between initialization retries (default 5s) |
 | list-locations | - | list available locations and exit |
 | list-proxies | - | output proxy list and exit |
 | location | String | desired proxy location. Default: best location |
